@@ -6,6 +6,7 @@ import 'package:skycast/screens/saved_cities_screen.dart';
 import 'package:skycast/screens/forecast_screen.dart';
 import 'package:skycast/screens/city_search_screen.dart';
 import 'package:skycast/screens/settings_screen.dart';
+import 'package:skycast/screens/weather_states_screen.dart';
 
 void main() {
   testWidgets('renders the SkyCast weather dashboard', (
@@ -93,5 +94,31 @@ void main() {
     await tester.drag(find.byType(ListView), const Offset(0, -900));
     await tester.pumpAndSettle();
     expect(find.text('About SkyCast'), findsOneWidget);
+  });
+
+  testWidgets('renders explicit weather request states', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: WeatherStateView(state: WeatherRequestState.networkError),
+      ),
+    );
+
+    expect(find.text('Unable to load weather'), findsOneWidget);
+    expect(find.text('Try Again'), findsOneWidget);
+    expect(find.text('SkyCast'), findsNothing);
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: WeatherStateView(
+          state: WeatherRequestState.offline,
+          hasCachedWeather: true,
+          lastUpdated: 'Today, 9:42 AM',
+        ),
+      ),
+    );
+    expect(find.text('Showing saved weather'), findsOneWidget);
+    expect(find.text('Last updated Today, 9:42 AM'), findsOneWidget);
   });
 }
