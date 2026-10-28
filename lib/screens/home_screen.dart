@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'forecast_screen.dart';
+import 'city_search_screen.dart';
 
 class WeatherHomePage extends StatefulWidget {
   const WeatherHomePage({super.key});
@@ -32,7 +33,9 @@ class _WeatherHomePageState extends State<WeatherHomePage> {
   ];
 
   void _showSearch() {
-    showSearch<void>(context: context, delegate: _CitySearchDelegate());
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const CitySearchScreen()));
   }
 
   @override
@@ -782,37 +785,6 @@ class _ForecastRow extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _CitySearchDelegate extends SearchDelegate<void> {
-  @override
-  List<Widget>? buildActions(BuildContext context) => [
-    IconButton(
-      onPressed: () => query = '',
-      icon: const Icon(Icons.clear_rounded),
-    ),
-  ];
-
-  @override
-  Widget? buildLeading(BuildContext context) => IconButton(
-    onPressed: () => close(context, null),
-    icon: const Icon(Icons.arrow_back_rounded),
-  );
-
-  @override
-  Widget buildResults(BuildContext context) => _searchMessage();
-
-  @override
-  Widget buildSuggestions(BuildContext context) => _searchMessage();
-
-  Widget _searchMessage() {
-    return Center(
-      child: Text(
-        query.isEmpty ? 'Search for a city' : 'Weather search for “$query”',
-        style: const TextStyle(color: Color(0xFF8290A8), fontSize: 15),
       ),
     );
   }
