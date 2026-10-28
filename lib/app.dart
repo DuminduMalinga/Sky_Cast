@@ -10,7 +10,7 @@ class SkyCastApp extends StatefulWidget {
 }
 
 class _SkyCastAppState extends State<SkyCastApp> {
-  final _themeMode = ValueNotifier<ThemeMode>(ThemeMode.system);
+  final _themeMode = ValueNotifier<ThemeMode>(ThemeMode.dark);
 
   @override
   void dispose() {
@@ -20,7 +20,6 @@ class _SkyCastAppState extends State<SkyCastApp> {
 
   @override
   Widget build(BuildContext context) {
-    const navy = Color(0xFF101B36);
     return ValueListenableBuilder<ThemeMode>(
       valueListenable: _themeMode,
       builder: (context, themeMode, _) {
@@ -30,8 +29,8 @@ class _SkyCastAppState extends State<SkyCastApp> {
             title: 'SkyCast',
             debugShowCheckedModeBanner: false,
             themeMode: themeMode,
-            theme: _buildTheme(Brightness.light, navy),
-            darkTheme: _buildTheme(Brightness.dark, navy),
+            theme: _buildTheme(Brightness.light),
+            darkTheme: _buildTheme(Brightness.dark),
             home: const WeatherHomePage(),
           ),
         );
@@ -39,28 +38,64 @@ class _SkyCastAppState extends State<SkyCastApp> {
     );
   }
 
-  ThemeData _buildTheme(Brightness brightness, Color navy) {
+  ThemeData _buildTheme(Brightness brightness) {
     final dark = brightness == Brightness.dark;
+    const accent = Color(0xFF63B8FF);
+    const background = Color(0xFF0B1220);
+    const card = Color(0xFF151F33);
+    const primaryText = Color(0xFFF5F8FF);
+    const secondaryText = Color(0xFFA8B4C8);
+    const divider = Color(0xFF27334A);
     return ThemeData(
       colorScheme: ColorScheme.fromSeed(
-        seedColor: const Color(0xFF63B8FF),
+        seedColor: accent,
         brightness: brightness,
+        surface: dark ? card : Colors.white,
+        onSurface: dark ? primaryText : const Color(0xFF101B36),
+        outline: dark ? divider : const Color(0xFFE1EAF4),
       ),
       scaffoldBackgroundColor: dark
-          ? const Color(0xFF0B1429)
+          ? background
           : const Color(0xFFF4F7FC),
+      cardColor: dark ? card : Colors.white,
+      dividerColor: dark ? divider : const Color(0xFFE1EAF4),
+      hintColor: dark ? secondaryText : const Color(0xFF8290A8),
+      textTheme: ThemeData(brightness: brightness).textTheme.apply(
+        bodyColor: dark ? primaryText : const Color(0xFF101B36),
+        displayColor: dark ? primaryText : const Color(0xFF101B36),
+      ),
       fontFamily: 'Avenir',
       useMaterial3: true,
       appBarTheme: AppBarTheme(
         backgroundColor: Colors.transparent,
-        foregroundColor: dark ? Colors.white : navy,
+        foregroundColor: dark ? primaryText : const Color(0xFF101B36),
         elevation: 0,
       ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: dark ? card : Colors.white,
+        hintStyle: TextStyle(color: dark ? secondaryText : const Color(0xFF8290A8)),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(17),
+          borderSide: BorderSide(color: dark ? divider : const Color(0xFFE2EAF4)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(17),
+          borderSide: const BorderSide(color: accent, width: 1.5),
+        ),
+      ),
       navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: dark ? const Color(0xFF111E38) : Colors.white,
+        backgroundColor: dark ? card : Colors.white,
         indicatorColor: dark
             ? const Color(0xFF234A70)
             : const Color(0xFFE4F2FF),
+        labelTextStyle: WidgetStatePropertyAll(
+          TextStyle(
+            color: dark ? secondaryText : const Color(0xFF101B36),
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
       ),
     );
   }

@@ -81,7 +81,6 @@ class _SavedCitiesScreenState extends State<SavedCitiesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F7FC),
       appBar: AppBar(
         leading: IconButton(
           tooltip: 'Back',
@@ -102,7 +101,7 @@ class _SavedCitiesScreenState extends State<SavedCitiesScreen> {
               label: const Text('Add City'),
               style: FilledButton.styleFrom(
                 backgroundColor: const Color(0xFF63B8FF),
-                foregroundColor: const Color(0xFF101B36),
+                foregroundColor: Theme.of(context).colorScheme.onSurface,
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 textStyle: const TextStyle(
                   fontSize: 11,
@@ -191,7 +190,7 @@ class _SavedCityCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.white,
+      color: Theme.of(context).cardColor,
       borderRadius: BorderRadius.circular(21),
       child: InkWell(
         onTap: onTap,
@@ -203,7 +202,7 @@ class _SavedCityCard extends StatelessWidget {
             border: Border.all(
               color: city.isSelected
                   ? const Color(0xFF63B8FF)
-                  : const Color(0xFFE2EAF4),
+                  : Theme.of(context).dividerColor,
               width: city.isSelected ? 1.5 : 1,
             ),
             boxShadow: const [
@@ -221,8 +220,8 @@ class _SavedCityCard extends StatelessWidget {
                 height: 52,
                 decoration: BoxDecoration(
                   color: city.isSelected
-                      ? const Color(0xFFE7F4FF)
-                      : const Color(0xFFF0F6FC),
+                      ? Theme.of(context).colorScheme.surfaceContainerHighest
+                      : Theme.of(context).scaffoldBackgroundColor,
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Icon(
@@ -254,7 +253,7 @@ class _SavedCityCard extends StatelessWidget {
                               vertical: 3,
                             ),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFE4F2FF),
+                              color: Theme.of(context).colorScheme.surfaceContainerHighest,
                               borderRadius: BorderRadius.circular(7),
                             ),
                             child: const Text(
@@ -311,8 +310,8 @@ class _SavedCityCard extends StatelessWidget {
                   ),
                   Text(
                     city.temperature,
-                    style: const TextStyle(
-                      color: Color(0xFF101B36),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurface,
                       fontSize: 25,
                       fontWeight: FontWeight.w300,
                     ),
@@ -352,10 +351,10 @@ class _SavedEmptyState extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 20),
-            const Text(
+            Text(
               'No saved cities yet',
               style: TextStyle(
-                color: Color(0xFF101B36),
+                color: Theme.of(context).colorScheme.onSurface,
                 fontSize: 18,
                 fontWeight: FontWeight.w800,
               ),
@@ -385,7 +384,6 @@ class CityWeatherDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F7FC),
       appBar: AppBar(
         leading: IconButton(
           tooltip: 'Back',

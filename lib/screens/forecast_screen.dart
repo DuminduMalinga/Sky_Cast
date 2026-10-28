@@ -56,7 +56,6 @@ class _ForecastScreenState extends State<ForecastScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F7FC),
       appBar: AppBar(
         leading: IconButton(
           tooltip: 'Back',
@@ -140,7 +139,7 @@ class _SegmentedControl extends StatelessWidget {
       height: 48,
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: const Color(0xFFE6EDF6),
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(15),
       ),
       child: Row(
@@ -181,7 +180,7 @@ class _Segment extends StatelessWidget {
           duration: const Duration(milliseconds: 180),
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: selected ? Colors.white : Colors.transparent,
+            color: selected ? Theme.of(context).cardColor : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
             boxShadow: selected
                 ? const [
@@ -197,8 +196,8 @@ class _Segment extends StatelessWidget {
             label,
             style: TextStyle(
               color: selected
-                  ? const Color(0xFF101B36)
-                  : const Color(0xFF7890AD),
+                  ? Theme.of(context).colorScheme.onSurface
+                  : Theme.of(context).hintColor,
               fontSize: 13,
               fontWeight: FontWeight.w800,
             ),
@@ -230,10 +229,10 @@ class _HourlyRail extends StatelessWidget {
             width: 75,
             padding: const EdgeInsets.symmetric(vertical: 13),
             decoration: BoxDecoration(
-              color: current ? const Color(0xFF5BA9E8) : Colors.white,
+              color: current ? const Color(0xFF5BA9E8) : Theme.of(context).cardColor,
               borderRadius: BorderRadius.circular(17),
               border: Border.all(
-                color: current ? Colors.transparent : const Color(0xFFE1EAF4),
+                color: current ? Colors.transparent : Theme.of(context).dividerColor,
               ),
               boxShadow: current
                   ? const [
@@ -251,7 +250,7 @@ class _HourlyRail extends StatelessWidget {
                 Text(
                   item.$1,
                   style: TextStyle(
-                    color: current ? Colors.white : const Color(0xFF7588A4),
+                    color: current ? Colors.white : Theme.of(context).hintColor,
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
                   ),
@@ -266,7 +265,7 @@ class _HourlyRail extends StatelessWidget {
                 Text(
                   item.$2,
                   style: TextStyle(
-                    color: current ? Colors.white : const Color(0xFF101B36),
+                    color: current ? Colors.white : Theme.of(context).colorScheme.onSurface,
                     fontSize: 16,
                     fontWeight: FontWeight.w800,
                   ),
@@ -276,7 +275,7 @@ class _HourlyRail extends StatelessWidget {
                   style: TextStyle(
                     color: current
                         ? const Color(0xE6FFFFFF)
-                        : const Color(0xFF8290A8),
+                    : Theme.of(context).hintColor,
                     fontSize: 9,
                     fontWeight: FontWeight.w600,
                   ),
@@ -299,9 +298,9 @@ class _TemperatureChart extends StatelessWidget {
       height: 225,
       padding: const EdgeInsets.fromLTRB(13, 17, 16, 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFE1EAF4)),
+        border: Border.all(color: Theme.of(context).dividerColor),
       ),
       child: CustomPaint(
         painter: _ChartPainter(),
@@ -420,9 +419,9 @@ class _DayForecastList extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 15),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFE1EAF4)),
+        border: Border.all(color: Theme.of(context).dividerColor),
       ),
       child: Column(
         children: [
@@ -437,7 +436,7 @@ class _DayForecastList extends StatelessWidget {
               icon: days[index].$7,
             ),
             if (index < days.length - 1)
-              const Divider(height: 1, color: Color(0xFFEDF2F7)),
+              Divider(height: 1, color: Theme.of(context).dividerColor),
           ],
         ],
       ),
@@ -626,9 +625,9 @@ class _Metric extends StatelessWidget {
       height: 96,
       padding: const EdgeInsets.all(11),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(17),
-        border: Border.all(color: const Color(0xFFE1EAF4)),
+        border: Border.all(color: Theme.of(context).dividerColor),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
