@@ -226,8 +226,8 @@ class _WeatherHomePageState extends State<WeatherHomePage> {
           setState(() => _selectedTab = index);
         },
         height: 76,
-        backgroundColor: Colors.white,
-        indicatorColor: const Color(0xFFE4F2FF),
+        backgroundColor: Theme.of(context).navigationBarTheme.backgroundColor,
+        indicatorColor: Theme.of(context).navigationBarTheme.indicatorColor,
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
         destinations: const [
           NavigationDestination(
@@ -275,19 +275,19 @@ class _TopBar extends StatelessWidget {
           width: 42,
           height: 42,
           decoration: BoxDecoration(
-            color: const Color(0xFF101B36),
+            color: Theme.of(context).cardColor,
             borderRadius: BorderRadius.circular(13),
           ),
-          child: const Stack(
+          child: Stack(
             alignment: Alignment.center,
             children: [
-              Icon(Icons.cloud_rounded, color: Color(0xFF63B8FF), size: 25),
+              const Icon(Icons.cloud_rounded, color: Color(0xFF63B8FF), size: 25),
               Positioned(
                 right: 7,
                 top: 7,
                 child: Icon(
                   Icons.wb_sunny_rounded,
-                  color: Colors.white,
+                  color: Theme.of(context).cardColor,
                   size: 11,
                 ),
               ),
@@ -359,7 +359,7 @@ class _IconButton extends StatelessWidget {
         child: SizedBox(
           width: 42,
           height: 42,
-          child: Icon(icon, color: const Color(0xFF101B36), size: 22),
+          child: Icon(icon, color: Theme.of(context).colorScheme.onSurface, size: 22),
         ),
       ),
     );
@@ -428,9 +428,9 @@ class _HeroWeatherCard extends StatelessWidget {
                   const Spacer(),
                   GestureDetector(
                     onTap: onLocationTap,
-                    child: const Icon(
+                    child: Icon(
                       Icons.my_location_rounded,
-                      color: Colors.white,
+                      color: Theme.of(context).cardColor,
                       size: 18,
                     ),
                   ),
@@ -610,7 +610,7 @@ class _HighlightCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE9EFF7)),
+        border: Border.all(color: Theme.of(context).dividerColor),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -627,8 +627,8 @@ class _HighlightCard extends StatelessWidget {
               const SizedBox(height: 2),
               Text(
                 value,
-                style: const TextStyle(
-                  color: Color(0xFF101B36),
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurface,
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
                 ),
@@ -720,9 +720,9 @@ class _FiveDayForecast extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFE9EFF7)),
+        border: Border.all(color: Theme.of(context).dividerColor),
       ),
       child: Column(
         children: [
@@ -735,7 +735,7 @@ class _FiveDayForecast extends StatelessWidget {
               icon: days[index].$5,
             ),
             if (index != days.length - 1)
-              const Divider(height: 1, color: Color(0xFFEEF2F7)),
+              Divider(height: 1, color: Theme.of(context).dividerColor),
           ],
         ],
       ),

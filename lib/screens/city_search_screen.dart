@@ -93,7 +93,6 @@ class _CitySearchScreenState extends State<CitySearchScreen> {
   Widget build(BuildContext context) {
     final showingResults = _query.isNotEmpty && !_isLoading;
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F7FC),
       appBar: AppBar(
         leading: IconButton(
           tooltip: 'Back',
@@ -195,11 +194,11 @@ class _SearchField extends StatelessWidget {
               )
             : null,
         filled: true,
-        fillColor: Colors.white,
+        fillColor: Theme.of(context).cardColor,
         contentPadding: const EdgeInsets.symmetric(vertical: 17),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(17),
-          borderSide: const BorderSide(color: Color(0xFFE2EAF4)),
+          borderSide: BorderSide(color: Theme.of(context).dividerColor),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(17),
@@ -223,7 +222,7 @@ class _LocationButton extends StatelessWidget {
       label: const Text('Use My Location'),
       style: OutlinedButton.styleFrom(
         foregroundColor: const Color(0xFF2D78B4),
-        backgroundColor: const Color(0xFFEAF5FF),
+        backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
         side: BorderSide.none,
         minimumSize: const Size.fromHeight(50),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
@@ -360,7 +359,7 @@ class _CityListItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.white,
+      color: Theme.of(context).cardColor,
       borderRadius: BorderRadius.circular(17),
       child: InkWell(
         onTap: onTap,
@@ -373,7 +372,7 @@ class _CityListItem extends StatelessWidget {
                 width: 42,
                 height: 42,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFEAF5FF),
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(13),
                 ),
                 child: Icon(
@@ -389,8 +388,8 @@ class _CityListItem extends StatelessWidget {
                   children: [
                     Text(
                       city.city,
-                      style: const TextStyle(
-                        color: Color(0xFF101B36),
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurface,
                         fontSize: 15,
                         fontWeight: FontWeight.w800,
                       ),
@@ -398,8 +397,8 @@ class _CityListItem extends StatelessWidget {
                     const SizedBox(height: 3),
                     Text(
                       city.country,
-                      style: const TextStyle(
-                        color: Color(0xFF8290A8),
+                      style: TextStyle(
+                        color: Theme.of(context).hintColor,
                         fontSize: 12,
                       ),
                     ),
@@ -411,8 +410,8 @@ class _CityListItem extends StatelessWidget {
                   padding: const EdgeInsets.only(right: 10),
                   child: Text(
                     city.temperature!,
-                    style: const TextStyle(
-                      color: Color(0xFF101B36),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurface,
                       fontSize: 15,
                       fontWeight: FontWeight.w800,
                     ),
@@ -436,8 +435,8 @@ class _SectionTitle extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       title,
-      style: const TextStyle(
-        color: Color(0xFF101B36),
+      style: TextStyle(
+        color: Theme.of(context).colorScheme.onSurface,
         fontSize: 17,
         fontWeight: FontWeight.w800,
       ),
@@ -465,8 +464,8 @@ class _EmptyState extends StatelessWidget {
           Container(
             width: 66,
             height: 66,
-            decoration: const BoxDecoration(
-              color: Color(0xFFEAF5FF),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
               shape: BoxShape.circle,
             ),
             child: Icon(icon, color: const Color(0xFF63B8FF), size: 29),
@@ -474,8 +473,8 @@ class _EmptyState extends StatelessWidget {
           const SizedBox(height: 16),
           Text(
             title,
-            style: const TextStyle(
-              color: Color(0xFF101B36),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface,
               fontSize: 16,
               fontWeight: FontWeight.w800,
             ),
@@ -484,7 +483,7 @@ class _EmptyState extends StatelessWidget {
           Text(
             message,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: Color(0xFF8290A8), fontSize: 13),
+            style: TextStyle(color: Theme.of(context).hintColor, fontSize: 13),
           ),
         ],
       ),
