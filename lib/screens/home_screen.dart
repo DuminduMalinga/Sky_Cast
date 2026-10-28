@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'forecast_screen.dart';
+
 class WeatherHomePage extends StatefulWidget {
   const WeatherHomePage({super.key});
 
@@ -196,6 +198,12 @@ class _WeatherHomePageState extends State<WeatherHomePage> {
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedTab,
         onDestinationSelected: (index) {
+          if (index == 1) {
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const ForecastScreen()),
+            );
+            return;
+          }
           setState(() => _selectedTab = index);
         },
         height: 76,
