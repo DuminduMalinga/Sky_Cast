@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'forecast_screen.dart';
 import 'city_search_screen.dart';
 import 'saved_cities_screen.dart';
+import 'settings_screen.dart';
 
 class WeatherHomePage extends StatefulWidget {
   const WeatherHomePage({super.key});
@@ -213,6 +214,12 @@ class _WeatherHomePageState extends State<WeatherHomePage> {
               MaterialPageRoute<void>(
                 builder: (_) => const SavedCitiesScreen(),
               ),
+            );
+            return;
+          }
+          if (index == 3) {
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const SettingsScreen()),
             );
             return;
           }

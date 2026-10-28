@@ -5,6 +5,7 @@ import 'package:skycast/main.dart';
 import 'package:skycast/screens/saved_cities_screen.dart';
 import 'package:skycast/screens/forecast_screen.dart';
 import 'package:skycast/screens/city_search_screen.dart';
+import 'package:skycast/screens/settings_screen.dart';
 
 void main() {
   testWidgets('renders the SkyCast weather dashboard', (
@@ -76,5 +77,21 @@ void main() {
     await tester.tap(find.text('Galle'));
     await tester.pumpAndSettle();
     expect(find.text('Light rain'), findsOneWidget);
+  });
+
+  testWidgets('renders settings and changes preferences', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(const MaterialApp(home: SettingsScreen()));
+
+    expect(find.text('Settings'), findsOneWidget);
+    expect(find.text('Appearance'), findsOneWidget);
+    expect(find.text('Weather preferences'), findsOneWidget);
+    expect(find.text('Daily weather summary'), findsOneWidget);
+    await tester.tap(find.text('Dark Theme'));
+    await tester.pump();
+    await tester.drag(find.byType(ListView), const Offset(0, -900));
+    await tester.pumpAndSettle();
+    expect(find.text('About SkyCast'), findsOneWidget);
   });
 }
