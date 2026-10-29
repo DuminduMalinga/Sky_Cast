@@ -25,13 +25,17 @@ class LocationService {
   static const _maxCacheAge = Duration(minutes: 10);
 
   /// The device position as a "lat,lon" query accepted by WeatherAPI.
-  Future<String> currentQuery() async {
+  ///
+  /// With [allowPrompt] false the permission dialog is never shown: if access
+  /// has not already been granted this throws [LocationFailure.denied]. Use it
+  /// for the automatic lookup on app start so the user is asked only once.
+  Future<String> currentQuery({bool allowPrompt = true}) async {
     try {
       if (!await Geolocator.isLocationServiceEnabled()) {
         throw const LocationException(LocationFailure.serviceDisabled);
       }
       var permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
+      if (permission == LocationPermission.denied && allowPrompt) {
         permission = await Geolocator.requestPermission();
       }
       if (permission == LocationPermission.deniedForever) {

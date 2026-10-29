@@ -12,12 +12,16 @@ class SavedCitiesScreen extends StatefulWidget {
   const SavedCitiesScreen({
     required this.currentCity,
     this.service,
+    this.onBack,
     super.key,
   });
 
   /// The city shown on the home screen; it is highlighted and saved by default.
   final String currentCity;
   final WeatherService? service;
+
+  /// Returns to Home when shown as a tab; null pops the route.
+  final VoidCallback? onBack;
 
   @override
   State<SavedCitiesScreen> createState() => _SavedCitiesScreenState();
@@ -130,7 +134,7 @@ class _SavedCitiesScreenState extends State<SavedCitiesScreen>
       appBar: AppBar(
         leading: IconButton(
           tooltip: 'Back',
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: widget.onBack ?? () => Navigator.of(context).pop(),
           icon: const Icon(Icons.arrow_back_rounded),
         ),
         title: const Text(

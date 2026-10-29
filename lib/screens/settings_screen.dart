@@ -2,9 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../app.dart';
 import '../services/app_settings.dart';
+import '../services/location_service.dart';
 
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key});
+  const SettingsScreen({this.onBack, super.key});
+
+  /// Returns to Home when shown as a tab; null pops the route.
+  final VoidCallback? onBack;
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -41,7 +45,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       appBar: AppBar(
         leading: IconButton(
           tooltip: 'Back',
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: widget.onBack ?? () => Navigator.of(context).pop(),
           icon: const Icon(Icons.arrow_back_rounded),
         ),
         title: const Text(
@@ -111,6 +115,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 value: _settings.autoLocation,
                 onChanged: (value) {
                   _settings.setAutoLocation(value);
+                  // Turning it on is the moment to ask for access if needed.
+                  if (value) _requestLocationAccess();
                   setState(() {});
                 },
               ),
@@ -175,6 +181,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _requestLocationAccess() async {
+    try {
+      await LocationService().currentQuery();
+    } on LocationException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    }
   }
 
   void _showInfo(BuildContext context, String title, String body) {
@@ -296,6 +313,8 @@ class _ThemeChoice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final onSurface = Theme.of(context).colorScheme.onSurface;
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
@@ -304,7 +323,7 @@ class _ThemeChoice extends StatelessWidget {
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
           color: selected
-              ? const Color(0xFFE4F2FF)
+              ? (dark ? const Color(0xFF1C3A5E) : const Color(0xFFE4F2FF))
               : Theme.of(context).scaffoldBackgroundColor,
           borderRadius: BorderRadius.circular(13),
           border: Border.all(
@@ -321,8 +340,8 @@ class _ThemeChoice extends StatelessWidget {
               icon,
               size: 20,
               color: selected
-                  ? const Color(0xFF357CA9)
-                  : Theme.of(context).hintColor,
+                  ? (dark ? const Color(0xFF63B8FF) : const Color(0xFF357CA9))
+                  : (dark ? const Color(0xFFC3D0E3) : Theme.of(context).hintColor),
             ),
             const SizedBox(height: 5),
             Text(
@@ -330,8 +349,8 @@ class _ThemeChoice extends StatelessWidget {
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: selected
-                    ? const Color(0xFF101B36)
-                    : Theme.of(context).textTheme.bodySmall?.color,
+                    ? (dark ? Colors.white : const Color(0xFF101B36))
+                    : onSurface,
                 fontSize: 10,
                 fontWeight: FontWeight.w700,
               ),
@@ -381,6 +400,19 @@ class _ChoiceRow extends StatelessWidget {
             showSelectedIcon: false,
             style: ButtonStyle(
               visualDensity: VisualDensity.compact,
+              backgroundColor: WidgetStateProperty.resolveWith(
+                (states) => states.contains(WidgetState.selected)
+                    ? const Color(0xFF63B8FF)
+                    : null,
+              ),
+              foregroundColor: WidgetStateProperty.resolveWith(
+                (states) => states.contains(WidgetState.selected)
+                    ? const Color(0xFF101B36)
+                    : Theme.of(context).colorScheme.onSurface,
+              ),
+              side: WidgetStatePropertyAll(
+                BorderSide(color: Theme.of(context).dividerColor),
+              ),
               textStyle: const WidgetStatePropertyAll(
                 TextStyle(fontSize: 10, fontWeight: FontWeight.w700),
               ),

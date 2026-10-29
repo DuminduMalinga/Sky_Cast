@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/weather.dart';
 import '../services/app_settings.dart';
 import '../utils/format.dart';
+import '../widgets/sky_nav_bar.dart';
 
 /// Extra current conditions: sun times, pressure, visibility and more.
 class DetailsScreen extends StatefulWidget {
@@ -61,6 +62,10 @@ class _DetailsScreenState extends State<DetailsScreen>
       ),
     ];
     return Scaffold(
+      bottomNavigationBar: SkyNavigationBar(
+        selectedIndex: AppNav.home,
+        onSelected: (index) => AppNav.go(context, index),
+      ),
       appBar: AppBar(
         leading: IconButton(
           tooltip: 'Back',

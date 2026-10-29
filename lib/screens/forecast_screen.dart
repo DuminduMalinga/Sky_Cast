@@ -3,11 +3,16 @@ import 'package:flutter/material.dart';
 import '../models/weather.dart';
 import '../services/app_settings.dart';
 import '../utils/format.dart';
+import '../widgets/sky_nav_bar.dart';
 
 class ForecastScreen extends StatefulWidget {
-  const ForecastScreen({required this.report, super.key});
+  const ForecastScreen({required this.report, this.onBack, super.key});
 
   final WeatherReport report;
+
+  /// Set when shown as a tab: the back arrow returns to Home. When null the
+  /// screen was pushed (from Saved), so it pops and shows the navigation bar.
+  final VoidCallback? onBack;
 
   @override
   State<ForecastScreen> createState() => _ForecastScreenState();
@@ -46,10 +51,16 @@ class _ForecastScreenState extends State<ForecastScreen>
       for (var i = 0; i < report.hours.length; i += 3) report.hours[i],
     ];
     return Scaffold(
+      bottomNavigationBar: widget.onBack != null
+          ? null
+          : SkyNavigationBar(
+              selectedIndex: AppNav.saved,
+              onSelected: (index) => AppNav.go(context, index),
+            ),
       appBar: AppBar(
         leading: IconButton(
           tooltip: 'Back',
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: widget.onBack ?? () => Navigator.of(context).pop(),
           icon: const Icon(Icons.arrow_back_rounded),
         ),
         title: Column(

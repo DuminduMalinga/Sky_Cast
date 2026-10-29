@@ -142,6 +142,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
   bool _locating = false;
 
   void _openDashboard() {
+    AppSettings.instance.setOnboarded();
     Navigator.of(context).pushReplacement(
       MaterialPageRoute<void>(
         builder: (_) =>

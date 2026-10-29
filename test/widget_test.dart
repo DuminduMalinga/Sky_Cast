@@ -11,6 +11,7 @@ import 'package:skycast/screens/saved_cities_screen.dart';
 import 'package:skycast/screens/details_screen.dart';
 import 'package:skycast/screens/forecast_screen.dart';
 import 'package:skycast/services/app_settings.dart';
+import 'package:skycast/services/city_store.dart';
 import 'package:skycast/screens/city_search_screen.dart';
 import 'package:skycast/screens/settings_screen.dart';
 import 'package:skycast/screens/weather_states_screen.dart';
@@ -85,8 +86,19 @@ WeatherService _fakeService({int status = 200, Object? body}) {
 /// Location is unavailable in tests, so the app falls back to the saved city.
 class _FakeLocation extends LocationService {
   @override
-  Future<String> currentQuery() =>
+  Future<String> currentQuery({bool allowPrompt = true}) =>
       throw const LocationException(LocationFailure.unavailable);
+}
+
+/// Records how the app asked for the location on start-up.
+class _RecordingLocation extends LocationService {
+  final prompts = <bool>[];
+
+  @override
+  Future<String> currentQuery({bool allowPrompt = true}) async {
+    prompts.add(allowPrompt);
+    return 'auto:ip';
+  }
 }
 
 void main() {
@@ -144,6 +156,95 @@ void main() {
     expect(find.text('06:20 PM'), findsOneWidget);
     expect(find.text('1012 hPa'), findsOneWidget);
     expect(find.text('10 km'), findsOneWidget);
+  });
+
+  testWidgets('keeps the navigation bar on every screen', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      SkyCastApp(service: _fakeService(), location: _FakeLocation()),
+    );
+    await tester.pumpAndSettle();
+
+    Finder navLabel(String label) =>
+        find.descendant(of: find.byType(NavigationBar), matching: find.text(label));
+
+    for (final label in ['Forecast', 'Saved', 'Settings']) {
+      await tester.tap(navLabel(label));
+      await tester.pumpAndSettle();
+      expect(find.byType(NavigationBar), findsOneWidget, reason: label);
+    }
+    expect(find.text('Appearance'), findsOneWidget);
+
+    // The tab's back arrow returns to Home with the bar still in place.
+    await tester.tap(find.byTooltip('Back'));
+    await tester.pumpAndSettle();
+    expect(find.text('Today’s highlights'), findsOneWidget);
+    expect(find.byType(NavigationBar), findsOneWidget);
+
+    // Pushed pages keep the bar, and it jumps straight to another tab.
+    await tester.tap(find.text('See details'));
+    await tester.pumpAndSettle();
+    expect(find.byType(DetailsScreen), findsOneWidget);
+    expect(find.byType(NavigationBar), findsOneWidget);
+    await tester.tap(navLabel('Settings'));
+    await tester.pumpAndSettle();
+    expect(find.byType(DetailsScreen), findsNothing);
+    expect(find.text('Appearance'), findsOneWidget);
+  });
+
+  testWidgets('refreshes the location on open without prompting', (
+    WidgetTester tester,
+  ) async {
+    final location = _RecordingLocation();
+    await tester.pumpWidget(
+      SkyCastApp(service: _fakeService(), location: location),
+    );
+    await tester.pumpAndSettle();
+
+    expect(location.prompts, [false]);
+    expect(find.text('Colombo, Sri Lanka'), findsOneWidget);
+  });
+
+  testWidgets('shows the welcome flow only on the first run', (
+    WidgetTester tester,
+  ) async {
+    await AppSettings.instance.load();
+    expect(AppSettings.instance.onboarded, isFalse);
+
+    await tester.pumpWidget(
+      SkyCastApp(
+        service: _fakeService(),
+        location: _FakeLocation(),
+        showOnboarding: true,
+      ),
+    );
+    await tester.pump(const Duration(seconds: 4));
+    await tester.tap(find.text('Explore Weather'));
+    await tester.pumpAndSettle();
+
+    expect(AppSettings.instance.onboarded, isTrue);
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getBool('onboarded'), isTrue);
+  });
+
+  testWidgets('saved cities survive an app restart', (
+    WidgetTester tester,
+  ) async {
+    await CityStore().saveSaved(['Matale, Sri Lanka', 'Kandy, Sri Lanka']);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SavedCitiesScreen(
+          currentCity: 'Colombo, Sri Lanka',
+          service: _fakeService(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Matale, Sri Lanka'), findsOneWidget);
+    expect(find.text('Kandy, Sri Lanka'), findsOneWidget);
   });
 
   testWidgets('persists the chosen theme', (WidgetTester tester) async {

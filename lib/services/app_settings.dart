@@ -11,12 +11,16 @@ class AppSettings extends ChangeNotifier {
   bool _mph = false;
   bool _inches = false;
   bool _autoLocation = true;
+  bool _onboarded = false;
   ThemeMode _themeMode = ThemeMode.dark;
 
   bool get fahrenheit => _fahrenheit;
   bool get mph => _mph;
   bool get inches => _inches;
   bool get autoLocation => _autoLocation;
+
+  /// Whether the first-run welcome flow has been completed.
+  bool get onboarded => _onboarded;
   ThemeMode get themeMode => _themeMode;
 
   String get temperatureUnit => _fahrenheit ? '°F' : '°C';
@@ -29,6 +33,7 @@ class AppSettings extends ChangeNotifier {
     _mph = prefs.getBool('mph') ?? false;
     _inches = prefs.getBool('inches') ?? false;
     _autoLocation = prefs.getBool('auto_location') ?? true;
+    _onboarded = prefs.getBool('onboarded') ?? false;
     _themeMode = ThemeMode.values.asNameMap()[prefs.getString('theme_mode')] ??
         ThemeMode.dark;
     notifyListeners();
@@ -45,6 +50,9 @@ class AppSettings extends ChangeNotifier {
 
   Future<void> setInches(bool value) =>
       _set('inches', value, () => _inches = value);
+
+  Future<void> setOnboarded() =>
+      _set('onboarded', true, () => _onboarded = true);
 
   Future<void> setAutoLocation(bool value) =>
       _set('auto_location', value, () => _autoLocation = value);

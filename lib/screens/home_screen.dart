@@ -11,6 +11,7 @@ import 'forecast_screen.dart';
 import 'city_search_screen.dart';
 import 'saved_cities_screen.dart';
 import 'settings_screen.dart';
+import '../widgets/sky_nav_bar.dart';
 import 'weather_states_screen.dart';
 
 class WeatherHomePage extends StatefulWidget {
@@ -26,7 +27,7 @@ class WeatherHomePage extends StatefulWidget {
 class _WeatherHomePageState extends State<WeatherHomePage>
     with SettingsListener<WeatherHomePage> {
   late final _service = widget.service ?? WeatherService();
-  int _selectedTab = 0;
+  final _visitedTabs = <int>{AppNav.home};
   final _store = CityStore();
   late final _location = widget.location ?? LocationService();
   late String _city = CityStore.defaultCity;
@@ -36,15 +37,30 @@ class _WeatherHomePageState extends State<WeatherHomePage>
   @override
   void initState() {
     super.initState();
+    AppNav.tab.value = AppNav.home; // a new shell always starts on Home
+    AppNav.tab.addListener(_onTabChanged);
     _init();
   }
+
+  @override
+  void dispose() {
+    AppNav.tab.removeListener(_onTabChanged);
+    super.dispose();
+  }
+
+  void _onTabChanged() {
+    if (mounted) setState(() {});
+  }
+
+  void _goHome() => AppNav.tab.value = AppNav.home;
 
   Future<void> _init() async {
     _city = await _store.loadCurrent();
     if (!mounted) return;
     if (AppSettings.instance.autoLocation) {
       try {
-        final query = await _location.currentQuery();
+        // Silent refresh on every open; never shows the permission dialog.
+        final query = await _location.currentQuery(allowPrompt: false);
         if (!mounted) return;
         await _load(query: query);
         return;
@@ -323,68 +339,49 @@ class _WeatherHomePageState extends State<WeatherHomePage>
     );
   }
 
+  /// Tabs are built the first time they are opened and then kept alive.
+  Widget _buildTabs(BuildContext context) {
+    final selected = AppNav.tab.value;
+    _visitedTabs.add(selected);
+    Widget tab(int index, Widget Function() build) =>
+        _visitedTabs.contains(index) ? build() : const SizedBox.shrink();
+    return IndexedStack(
+      index: selected,
+      children: [
+        _buildBody(context),
+        tab(
+          AppNav.forecast,
+          () => _report == null
+              ? _buildBody(context)
+              : ForecastScreen(report: _report!, onBack: _goHome),
+        ),
+        tab(
+          AppNav.saved,
+          () => SavedCitiesScreen(
+            currentCity: _city,
+            service: _service,
+            onBack: _goHome,
+          ),
+        ),
+        tab(AppNav.settings, () => SettingsScreen(onBack: _goHome)),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: _buildBody(context),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _selectedTab,
-        onDestinationSelected: (index) {
-          if (index == 1) {
-            final report = _report;
-            if (report == null) return;
-            Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => ForecastScreen(report: report),
-              ),
-            );
-            return;
-          }
-          if (index == 2) {
-            Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => SavedCitiesScreen(
-                  currentCity: _city,
-                  service: _service,
-                ),
-              ),
-            );
-            return;
-          }
-          if (index == 3) {
-            Navigator.of(context).push(
-              MaterialPageRoute<void>(builder: (_) => const SettingsScreen()),
-            );
-            return;
-          }
-          setState(() => _selectedTab = index);
-        },
-        height: 76,
-        backgroundColor: Theme.of(context).navigationBarTheme.backgroundColor,
-        indicatorColor: Theme.of(context).navigationBarTheme.indicatorColor,
-        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home_rounded),
-            label: 'Home',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.bar_chart_outlined),
-            selectedIcon: Icon(Icons.bar_chart_rounded),
-            label: 'Forecast',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.bookmark_border_rounded),
-            selectedIcon: Icon(Icons.bookmark_rounded),
-            label: 'Saved',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.settings_outlined),
-            selectedIcon: Icon(Icons.settings_rounded),
-            label: 'Settings',
-          ),
-        ],
+    final selected = AppNav.tab.value;
+    return PopScope(
+      canPop: selected == AppNav.home,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _goHome();
+      },
+      child: Scaffold(
+        body: _buildTabs(context),
+        bottomNavigationBar: SkyNavigationBar(
+          selectedIndex: selected,
+          onSelected: (index) => AppNav.tab.value = index,
+        ),
       ),
     );
   }
