@@ -4,19 +4,41 @@ A Flutter weather app that shows live conditions, an hourly outlook and a
 5-day forecast for your location or any city in the world, using the
 [WeatherAPI.com](https://www.weatherapi.com/) REST API.
 
+## Screenshots
+
+<p align="center">
+  <img src="docs/screenshots/welcome.png" width="190" alt="Welcome screen">
+  <img src="docs/screenshots/home.png" width="190" alt="Home dashboard">
+  <img src="docs/screenshots/home-forecast.png" width="190" alt="Hourly and 5-day forecast on the dashboard">
+  <img src="docs/screenshots/details.png" width="190" alt="Weather details">
+</p>
+<p align="center">
+  <img src="docs/screenshots/forecast-hourly.png" width="190" alt="Hourly forecast with 24-hour chart">
+  <img src="docs/screenshots/forecast-5day.png" width="190" alt="5-day forecast">
+  <img src="docs/screenshots/search.png" width="190" alt="City search with autocomplete">
+  <img src="docs/screenshots/saved.png" width="190" alt="Saved cities">
+</p>
+<p align="center">
+  <img src="docs/screenshots/settings.png" width="190" alt="Settings">
+  <img src="docs/screenshots/home-light.png" width="190" alt="Light theme">
+</p>
+
 ## Features
 
-- **Live weather** for your current location (GPS, with an IP-based fallback) or a chosen city
+- **Live weather** for your current location (GPS, with an IP-based fallback) or a chosen city.
+  Location permission is requested **once**, on first launch; after that the location is refreshed
+  silently every time the app opens, and the welcome screen is shown only the first time
 - **Dashboard**: temperature, condition, high/low, feels-like, humidity, wind, UV
 - **Weather details**: sunrise/sunset, pressure, visibility, precipitation, chance of rain, cloud cover
 - **Hourly and 5-day forecast** with a 24-hour temperature chart
 - **City search** with autocomplete and recent searches; WeatherAPI results are merged with
   [Open-Meteo](https://open-meteo.com/en/docs/geocoding-api) geocoding so smaller towns are found
-- **Saved cities** with live weather cards
+- **Saved cities** with live weather cards; the list is stored on the device and kept between launches
 - **Settings**: light/dark/system theme, °C/°F, km/h/mph, mm/in, automatic location
   (all persisted on the device)
 - **Loading, offline, server-error, city-not-found and location-permission-denied states**
   with retry and recovery paths
+- Persistent bottom navigation (Home, Forecast, Saved, Settings) on every screen
 - Pull-to-refresh, responsive layout, custom app icon and splash/welcome screen
 
 ## Getting started
@@ -55,6 +77,7 @@ lib/
   utils/format.dart            Unit conversion and formatting
 tool/                          App icon generator (see below)
 test/widget_test.dart          Widget tests with a mocked HTTP client
+docs/screenshots/              Screenshots used in this README
 ```
 
 ## Error handling
