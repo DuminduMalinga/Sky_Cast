@@ -198,6 +198,63 @@ void _symbol(Canvas canvas, {double scale = 1}) {
   canvas.restore();
 }
 
+/// Single-colour silhouette for Android 13+ themed icons. Gaps are carved
+/// between the sun, cloud and orbit so the shapes stay distinct.
+void _monochrome(Canvas canvas, {double scale = 1}) {
+  const white = Color(0xFFFFFFFF);
+  final fill = Paint()..color = white;
+  canvas.saveLayer(const Rect.fromLTWH(0, 0, _size, _size), Paint());
+  canvas.translate(_size * .5, _size * .5);
+  canvas.scale(scale);
+  canvas.translate(-_size * .5, -_size * .5 + 18);
+
+  canvas.drawCircle(const Offset(610, 384), 140, fill);
+  final cloud = _cloudPath();
+  canvas.drawPath(
+    cloud,
+    Paint()
+      ..blendMode = BlendMode.clear
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 44,
+  );
+  canvas.drawPath(cloud, fill);
+
+  // Near side of the orbit, with a clear channel so it reads over the cloud.
+  canvas.save();
+  canvas.translate(_size * .5, _size * .5);
+  canvas.rotate(-18 * math.pi / 180);
+  final orbit = Rect.fromCenter(center: Offset.zero, width: 576, height: 236);
+  for (final erase in [true, false]) {
+    canvas.drawArc(
+      orbit,
+      .15,
+      math.pi - .5,
+      false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeWidth = erase ? 46 : 20
+        ..blendMode = erase ? BlendMode.clear : BlendMode.srcOver
+        ..color = white,
+    );
+  }
+  canvas.restore();
+
+  final c = const Offset(766, 292);
+  const r = 48.0, k = r * .16;
+  canvas.drawPath(
+    Path()
+      ..moveTo(c.dx, c.dy - r)
+      ..quadraticBezierTo(c.dx + k, c.dy - k, c.dx + r, c.dy)
+      ..quadraticBezierTo(c.dx + k, c.dy + k, c.dx, c.dy + r)
+      ..quadraticBezierTo(c.dx - k, c.dy + k, c.dx - r, c.dy)
+      ..quadraticBezierTo(c.dx - k, c.dy - k, c.dx, c.dy - r)
+      ..close(),
+    fill,
+  );
+  canvas.restore();
+}
+
 Future<void> _write(String path, void Function(Canvas) draw) async {
   final recorder = ui.PictureRecorder();
   draw(Canvas(recorder, const Rect.fromLTWH(0, 0, _size, _size)));
@@ -221,6 +278,10 @@ void main() {
         (canvas) => _symbol(canvas, scale: .9),
       );
       await _write('assets/icon/skycast_icon_background.png', _background);
+      await _write(
+        'assets/icon/skycast_icon_monochrome.png',
+        (canvas) => _monochrome(canvas, scale: .9),
+      );
     });
   });
 }

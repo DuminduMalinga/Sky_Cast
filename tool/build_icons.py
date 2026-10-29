@@ -14,6 +14,7 @@ SRC = ROOT / "assets" / "icon"
 full = Image.open(SRC / "skycast_icon.png").convert("RGBA")
 foreground = Image.open(SRC / "skycast_icon_foreground.png").convert("RGBA")
 background = Image.open(SRC / "skycast_icon_background.png").convert("RGBA")
+mono = Image.open(SRC / "skycast_icon_monochrome.png").convert("RGBA")
 
 
 def resized(image, px):
@@ -54,6 +55,7 @@ for name, scale in densities.items():
     resized(background, layer).convert("RGB").save(
         folder / "ic_launcher_background.png"
     )
+    resized(mono, layer).save(folder / "ic_launcher_monochrome.png")
 
 adaptive = res / "mipmap-anydpi-v26"
 adaptive.mkdir(parents=True, exist_ok=True)
@@ -62,6 +64,31 @@ adaptive.mkdir(parents=True, exist_ok=True)
     '<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">\n'
     '    <background android:drawable="@mipmap/ic_launcher_background"/>\n'
     '    <foreground android:drawable="@mipmap/ic_launcher_foreground"/>\n'
+    '    <monochrome android:drawable="@mipmap/ic_launcher_monochrome"/>\n'
     "</adaptive-icon>\n"
+)
+
+# --- Web ---------------------------------------------------------------------
+web = ROOT / "web"
+resized(full, 32).save(web / "favicon.png")
+for px in (192, 512):
+    rounded(resized(full, px)).save(web / "icons" / f"Icon-{px}.png")
+    # Maskable: full-bleed artwork kept inside the 80% safe zone.
+    safe = Image.alpha_composite(background, foreground)
+    resized(safe, px).convert("RGB").save(web / "icons" / f"Icon-maskable-{px}.png")
+
+# --- macOS: rounded square inset on a transparent canvas ---------------------
+mac = ROOT / "macos/Runner/Assets.xcassets/AppIcon.appiconset"
+tile = rounded(full, 0.225)
+for px in (16, 32, 64, 128, 256, 512, 1024):
+    canvas = Image.new("RGBA", (px, px), (0, 0, 0, 0))
+    inner = round(px * 0.8)
+    canvas.alpha_composite(resized(tile, inner), ((px - inner) // 2,) * 2)
+    canvas.save(mac / f"app_icon_{px}.png")
+
+# --- Windows -----------------------------------------------------------------
+rounded(resized(full, 256)).save(
+    ROOT / "windows/runner/resources/app_icon.ico",
+    sizes=[(s, s) for s in (16, 24, 32, 48, 64, 128, 256)],
 )
 print("icons written")
