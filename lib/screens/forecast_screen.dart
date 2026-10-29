@@ -1,60 +1,50 @@
 import 'package:flutter/material.dart';
 
+import '../models/weather.dart';
+import '../services/app_settings.dart';
+import '../utils/format.dart';
+
 class ForecastScreen extends StatefulWidget {
-  const ForecastScreen({super.key});
+  const ForecastScreen({required this.report, super.key});
+
+  final WeatherReport report;
 
   @override
   State<ForecastScreen> createState() => _ForecastScreenState();
 }
 
-class _ForecastScreenState extends State<ForecastScreen> {
+class _ForecastScreenState extends State<ForecastScreen>
+    with SettingsListener<ForecastScreen> {
   int _view = 0;
-
-  static const _hourly = [
-    ('Now', '29°', '20%', Icons.cloud_queue_rounded),
-    ('11 AM', '30°', '18%', Icons.wb_sunny_rounded),
-    ('12 PM', '31°', '15%', Icons.wb_sunny_rounded),
-    ('1 PM', '32°', '12%', Icons.wb_sunny_rounded),
-    ('2 PM', '32°', '20%', Icons.cloud_rounded),
-    ('3 PM', '31°', '35%', Icons.cloud_queue_rounded),
-    ('4 PM', '30°', '42%', Icons.grain_rounded),
-    ('5 PM', '29°', '38%', Icons.water_drop_rounded),
-  ];
-
-  static const _days = [
-    (
-      'Tue',
-      '23 Apr',
-      'Partly cloudy',
-      '25°',
-      '32°',
-      '20%',
-      Icons.cloud_queue_rounded,
-    ),
-    ('Wed', '24 Apr', 'Sunny', '25°', '33°', '8%', Icons.wb_sunny_rounded),
-    ('Thu', '25 Apr', 'Light rain', '24°', '30°', '55%', Icons.grain_rounded),
-    (
-      'Fri',
-      '26 Apr',
-      'Mostly sunny',
-      '25°',
-      '32°',
-      '18%',
-      Icons.wb_sunny_rounded,
-    ),
-    (
-      'Sat',
-      '27 Apr',
-      'Scattered rain',
-      '24°',
-      '31°',
-      '48%',
-      Icons.water_drop_rounded,
-    ),
-  ];
 
   @override
   Widget build(BuildContext context) {
+    final report = widget.report;
+    final hourly = [
+      for (var i = 0; i < report.hours.length; i++)
+        (
+          i == 0 ? 'Now' : hourLabel(report.hours[i].time),
+          degrees(report.hours[i].tempC),
+          '${report.hours[i].chanceOfRain}%',
+          weatherIcon(report.hours[i].conditionCode, isDay: report.hours[i].isDay),
+        ),
+    ];
+    final days = [
+      for (final day in report.days)
+        (
+          weekdays[day.date.weekday - 1],
+          '${day.date.day} ${months[day.date.month - 1]}',
+          day.condition,
+          degrees(day.minC),
+          degrees(day.maxC),
+          '${day.chanceOfRain}%',
+          weatherIcon(day.conditionCode),
+        ),
+    ];
+    // Every third hour keeps the chart readable across the next 24 hours.
+    final chartHours = [
+      for (var i = 0; i < report.hours.length; i += 3) report.hours[i],
+    ];
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
@@ -62,16 +52,16 @@ class _ForecastScreenState extends State<ForecastScreen> {
           onPressed: () => Navigator.of(context).pop(),
           icon: const Icon(Icons.arrow_back_rounded),
         ),
-        title: const Column(
+        title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
+            const Text(
               'Weather Forecast',
               style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800),
             ),
             Text(
-              'Colombo, Sri Lanka',
-              style: TextStyle(
+              '${report.city}, ${report.country}',
+              style: const TextStyle(
                 color: Color(0xFF7185A6),
                 fontSize: 11,
                 fontWeight: FontWeight.w500,
@@ -80,7 +70,7 @@ class _ForecastScreenState extends State<ForecastScreen> {
           ],
         ),
         titleSpacing: 0,
-        actions: [
+        actions: const [
           Padding(
             padding: EdgeInsets.only(right: 18),
             child: Icon(
@@ -104,22 +94,22 @@ class _ForecastScreenState extends State<ForecastScreen> {
             if (_view == 0) ...[
               const _SectionTitle(title: 'Hourly forecast'),
               const SizedBox(height: 12),
-              _HourlyRail(items: _hourly),
+              _HourlyRail(items: hourly),
               const SizedBox(height: 22),
-              const _SectionTitle(title: 'Temperature today'),
+              const _SectionTitle(title: 'Temperature next 24 hours'),
               const SizedBox(height: 12),
-              const _TemperatureChart(),
+              _TemperatureChart(hours: chartHours),
             ] else ...[
               const _SectionTitle(title: '5-day forecast'),
               const SizedBox(height: 12),
-              _DayForecastList(days: _days),
+              _DayForecastList(days: days),
             ],
             const SizedBox(height: 24),
-            const _WeatherSummary(),
+            _WeatherSummary(report: report),
             const SizedBox(height: 24),
             const _SectionTitle(title: 'Weather metrics'),
             const SizedBox(height: 12),
-            const _MetricsGrid(),
+            _MetricsGrid(report: report),
           ],
         ),
       ),
@@ -290,7 +280,9 @@ class _HourlyRail extends StatelessWidget {
 }
 
 class _TemperatureChart extends StatelessWidget {
-  const _TemperatureChart();
+  const _TemperatureChart({required this.hours});
+
+  final List<HourForecast> hours;
 
   @override
   Widget build(BuildContext context) {
@@ -303,7 +295,13 @@ class _TemperatureChart extends StatelessWidget {
         border: Border.all(color: Theme.of(context).dividerColor),
       ),
       child: CustomPaint(
-        painter: _ChartPainter(),
+        painter: _ChartPainter(
+          values: [for (final hour in hours) hour.tempC],
+          labels: [
+            for (var i = 0; i < hours.length; i++)
+              i == 0 ? 'Now' : hourLabel(hours[i].time),
+          ],
+        ),
         child: const SizedBox.expand(),
       ),
     );
@@ -311,6 +309,11 @@ class _TemperatureChart extends StatelessWidget {
 }
 
 class _ChartPainter extends CustomPainter {
+  _ChartPainter({required this.values, required this.labels});
+
+  final List<double> values;
+  final List<String> labels;
+
   @override
   void paint(Canvas canvas, Size size) {
     const left = 32.0;
@@ -319,18 +322,17 @@ class _ChartPainter extends CustomPainter {
     const bottom = 28.0;
     final chartWidth = size.width - left - right;
     final chartHeight = size.height - top - bottom;
-    const values = [29.0, 30.0, 31.0, 32.0, 32.0, 31.0, 30.0, 29.0];
-    const labels = [
-      'Now',
-      '11 AM',
-      '12 PM',
-      '1 PM',
-      '2 PM',
-      '3 PM',
-      '4 PM',
-      '5 PM',
+    if (values.length < 2) return;
+    var minValue = values.reduce((a, b) => a < b ? a : b).floorToDouble();
+    var maxValue = values.reduce((a, b) => a > b ? a : b).ceilToDouble();
+    if (maxValue - minValue < 3) {
+      minValue -= 1;
+      maxValue += 2;
+    }
+    final range = maxValue - minValue;
+    final gridLabels = [
+      for (var i = 0; i < 4; i++) degrees(maxValue - range * i / 3),
     ];
-    const gridLabels = ['33°', '31°', '29°', '27°'];
     final gridPaint = Paint()
       ..color = const Color(0xFFEAF0F7)
       ..strokeWidth = 1;
@@ -343,7 +345,7 @@ class _ChartPainter extends CustomPainter {
     final points = <Offset>[];
     for (var index = 0; index < values.length; index++) {
       final x = left + chartWidth * index / (values.length - 1);
-      final y = top + (33 - values[index]) / 6 * chartHeight;
+      final y = top + (maxValue - values[index]) / range * chartHeight;
       points.add(Offset(x, y));
     }
     for (var index = 0; index < 4; index++) {
@@ -406,7 +408,8 @@ class _ChartPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _ChartPainter oldDelegate) =>
+      oldDelegate.values != values || oldDelegate.labels != labels;
 }
 
 class _DayForecastList extends StatelessWidget {
@@ -477,8 +480,8 @@ class _DayRow extends StatelessWidget {
               children: [
                 Text(
                   day,
-                  style: const TextStyle(
-                    color: Color(0xFF101B36),
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface,
                     fontSize: 13,
                     fontWeight: FontWeight.w800,
                   ),
@@ -503,8 +506,8 @@ class _DayRow extends StatelessWidget {
               children: [
                 Text(
                   condition,
-                  style: const TextStyle(
-                    color: Color(0xFF101B36),
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface,
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
                   ),
@@ -531,8 +534,8 @@ class _DayRow extends StatelessWidget {
           const SizedBox(width: 12),
           Text(
             high,
-            style: const TextStyle(
-              color: Color(0xFF101B36),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface,
               fontSize: 14,
               fontWeight: FontWeight.w800,
             ),
@@ -544,7 +547,18 @@ class _DayRow extends StatelessWidget {
 }
 
 class _WeatherSummary extends StatelessWidget {
-  const _WeatherSummary();
+  const _WeatherSummary({required this.report});
+
+  final WeatherReport report;
+
+  String get _text {
+    final today = report.today;
+    final base =
+        'Currently ${degrees(report.tempC)} and ${report.condition.toLowerCase()} in ${report.city}.';
+    if (today == null) return base;
+    return '$base Today expect a high of ${degrees(today.maxC)} and a low of '
+        '${degrees(today.minC)}, with a ${today.chanceOfRain}% chance of rain.';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -555,15 +569,19 @@ class _WeatherSummary extends StatelessWidget {
         borderRadius: BorderRadius.circular(19),
         border: Border.all(color: const Color(0xFFD8ECFB)),
       ),
-      child: const Row(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.auto_awesome_rounded, color: Color(0xFF4D9BD8), size: 22),
-          SizedBox(width: 12),
+          const Icon(
+            Icons.auto_awesome_rounded,
+            color: Color(0xFF4D9BD8),
+            size: 22,
+          ),
+          const SizedBox(width: 12),
           Expanded(
             child: Text(
-              'A warm and partly cloudy day ahead. Expect bright skies through the afternoon, with a small chance of light rain toward evening.',
-              style: TextStyle(
+              _text,
+              style: const TextStyle(
                 color: Color(0xFF31537F),
                 fontSize: 12,
                 height: 1.45,
@@ -578,32 +596,42 @@ class _WeatherSummary extends StatelessWidget {
 }
 
 class _MetricsGrid extends StatelessWidget {
-  const _MetricsGrid();
+  const _MetricsGrid({required this.report});
+
+  final WeatherReport report;
 
   @override
   Widget build(BuildContext context) {
     return Row(
-      children: const [
+      children: [
         Expanded(
           child: _Metric(
             label: 'Humidity',
-            value: '78%',
+            value: '${report.humidity}%',
             icon: Icons.water_drop_outlined,
           ),
         ),
-        SizedBox(width: 10),
+        const SizedBox(width: 10),
         Expanded(
           child: _Metric(
             label: 'Wind speed',
-            value: '14 km/h',
+            value: wind(report.windKph),
             icon: Icons.air_rounded,
           ),
         ),
-        SizedBox(width: 10),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _Metric(
+            label: 'Rain',
+            value: rain(report.precipMm),
+            icon: Icons.grain_rounded,
+          ),
+        ),
+        const SizedBox(width: 10),
         Expanded(
           child: _Metric(
             label: 'UV index',
-            value: '6',
+            value: report.uv.round().toString(),
             icon: Icons.wb_sunny_outlined,
           ),
         ),
@@ -640,8 +668,8 @@ class _Metric extends StatelessWidget {
           ),
           Text(
             value,
-            style: const TextStyle(
-              color: Color(0xFF101B36),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface,
               fontSize: 14,
               fontWeight: FontWeight.w800,
             ),
@@ -661,8 +689,8 @@ class _SectionTitle extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       title,
-      style: const TextStyle(
-        color: Color(0xFF101B36),
+      style: TextStyle(
+        color: Theme.of(context).colorScheme.onSurface,
         fontSize: 17,
         fontWeight: FontWeight.w800,
       ),

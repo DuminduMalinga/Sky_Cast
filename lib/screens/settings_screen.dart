@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../app.dart';
+import '../services/app_settings.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -12,13 +13,7 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   late final ValueNotifier<ThemeMode> _themeMode;
   late final bool _ownsThemeMode;
-  String _temperatureUnit = '°C';
-  String _windUnit = 'km/h';
-  String _precipitationUnit = 'mm';
-  bool _automaticLocation = true;
-  bool _dailySummary = true;
-  bool _severeAlerts = true;
-  bool _rainAlerts = false;
+  final _settings = AppSettings.instance;
 
   @override
   void initState() {
@@ -78,62 +73,46 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 icon: Icons.thermostat_rounded,
                 title: 'Temperature units',
                 subtitle: 'Choose how temperature is displayed',
-                value: _temperatureUnit,
+                value: _settings.temperatureUnit,
                 options: const ['°C', '°F'],
-                onChanged: (value) => setState(() => _temperatureUnit = value),
+                onChanged: (value) {
+                  _settings.setFahrenheit(value == '°F');
+                  setState(() {});
+                },
               ),
               _ChoiceRow(
                 icon: Icons.air_rounded,
                 title: 'Wind speed units',
                 subtitle: 'Choose your preferred wind speed',
-                value: _windUnit,
+                value: _settings.windUnit,
                 options: const ['km/h', 'mph'],
-                onChanged: (value) => setState(() => _windUnit = value),
+                onChanged: (value) {
+                  _settings.setMph(value == 'mph');
+                  setState(() {});
+                },
               ),
               _ChoiceRow(
                 icon: Icons.water_drop_outlined,
                 title: 'Precipitation',
                 subtitle: 'Display rainfall measurements in',
-                value: _precipitationUnit,
+                value: _settings.precipitationUnit,
                 options: const ['mm', 'in'],
-                onChanged: (value) =>
-                    setState(() => _precipitationUnit = value),
+                onChanged: (value) {
+                  _settings.setInches(value == 'in');
+                  setState(() {});
+                },
               ),
               _SwitchRow(
                 icon: Icons.location_on_outlined,
                 title: 'Automatic location',
-                subtitle: _automaticLocation
-                    ? 'Using your current location'
-                    : 'Colombo, Sri Lanka',
-                value: _automaticLocation,
-                onChanged: (value) =>
-                    setState(() => _automaticLocation = value),
-              ),
-            ],
-          ),
-          _SettingsSection(
-            title: 'Notifications',
-            children: [
-              _SwitchRow(
-                icon: Icons.wb_sunny_outlined,
-                title: 'Daily weather summary',
-                subtitle: 'A morning overview of your day',
-                value: _dailySummary,
-                onChanged: (value) => setState(() => _dailySummary = value),
-              ),
-              _SwitchRow(
-                icon: Icons.warning_amber_rounded,
-                title: 'Severe weather alerts',
-                subtitle: 'Important warnings for your location',
-                value: _severeAlerts,
-                onChanged: (value) => setState(() => _severeAlerts = value),
-              ),
-              _SwitchRow(
-                icon: Icons.umbrella_outlined,
-                title: 'Rain notifications',
-                subtitle: 'Let me know when rain is expected',
-                value: _rainAlerts,
-                onChanged: (value) => setState(() => _rainAlerts = value),
+                subtitle: _settings.autoLocation
+                    ? 'Using your current location on launch'
+                    : 'Using the city you selected',
+                value: _settings.autoLocation,
+                onChanged: (value) {
+                  _settings.setAutoLocation(value);
+                  setState(() {});
+                },
               ),
             ],
           ),
@@ -143,18 +122,39 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _InfoRow(
                 icon: Icons.auto_awesome_rounded,
                 title: 'About SkyCast',
-                onTap: () => _showMessage(context, 'SkyCast weather dashboard'),
+                onTap: () => _showInfo(
+                  context,
+                  'About SkyCast',
+                  'SkyCast shows current conditions, an hourly outlook and a '
+                      '5-day forecast for your location or any city you save.',
+                ),
               ),
               _InfoRow(
                 icon: Icons.cloud_outlined,
                 title: 'Weather data provider',
-                subtitle: 'Powered by your connected weather service',
-                onTap: () => _showMessage(context, 'Provider details'),
+                subtitle: 'Powered by WeatherAPI.com',
+                onTap: () => _showInfo(
+                  context,
+                  'Weather data provider',
+                  'Forecasts, current conditions and city search are provided '
+                      'by WeatherAPI.com (weatherapi.com). Data accuracy and '
+                      'availability depend on that service.',
+                ),
               ),
               _InfoRow(
                 icon: Icons.lock_outline_rounded,
                 title: 'Privacy Policy',
-                onTap: () => _showMessage(context, 'Privacy policy'),
+                onTap: () => _showInfo(
+                  context,
+                  'Privacy Policy',
+                  'SkyCast uses your device location only to look up local '
+                      'weather, and only when Automatic location is on or you '
+                      'tap the location button. Coordinates and the cities you '
+                      'search for are sent to WeatherAPI.com to fetch '
+                      'forecasts. Your settings, saved cities and recent '
+                      'searches are stored on this device only. SkyCast has no '
+                      'account system and does not collect analytics.',
+                ),
               ),
               const _InfoRow(
                 icon: Icons.info_outline_rounded,
@@ -177,10 +177,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  void _showMessage(BuildContext context, String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+  void _showInfo(BuildContext context, String title, String body) {
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: Text(body),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
   }
 }
 

@@ -1,18 +1,102 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:skycast/main.dart';
 import 'package:skycast/screens/saved_cities_screen.dart';
+import 'package:skycast/screens/details_screen.dart';
 import 'package:skycast/screens/forecast_screen.dart';
+import 'package:skycast/services/app_settings.dart';
 import 'package:skycast/screens/city_search_screen.dart';
 import 'package:skycast/screens/settings_screen.dart';
 import 'package:skycast/screens/weather_states_screen.dart';
+import 'package:skycast/services/location_service.dart';
+import 'package:skycast/services/weather_service.dart';
+
+Map<String, dynamic> _hour(String time, double temp) => {
+  'time': time,
+  'temp_c': temp,
+  'is_day': 1,
+  'condition': {'text': 'Sunny', 'code': 1000},
+};
+
+Map<String, dynamic> _day(String date) => {
+  'date': date,
+  'day': {
+    'maxtemp_c': 32.0,
+    'mintemp_c': 25.0,
+    'condition': {'text': 'Sunny', 'code': 1000},
+  },
+  'astro': {'sunrise': '06:12 AM', 'sunset': '06:20 PM'},
+  'hour': [
+    for (var h = 0; h < 24; h++)
+      _hour('$date ${h.toString().padLeft(2, '0')}:00', 29.0),
+  ],
+};
+
+WeatherService _fakeService({int status = 200, Object? body}) {
+  final weather = {
+    'location': {
+      'name': 'Colombo',
+      'country': 'Sri Lanka',
+      'localtime': '2024-04-23 10:42',
+    },
+    'current': {
+      'temp_c': 29.4,
+      'is_day': 1,
+      'condition': {'text': 'Partly cloudy', 'code': 1003},
+      'feelslike_c': 32.0,
+      'humidity': 78,
+      'wind_kph': 14.0,
+      'uv': 6.0,
+      'pressure_mb': 1012.0,
+      'vis_km': 10.0,
+      'cloud': 40,
+      'wind_dir': 'NW',
+    },
+    'forecast': {
+      'forecastday': [
+        _day('2024-04-23'),
+        _day('2024-04-24'),
+        _day('2024-04-25'),
+      ],
+    },
+  };
+  final cities = [
+    {'name': 'Kandy', 'region': 'Central', 'country': 'Sri Lanka'},
+  ];
+  return WeatherService(
+    client: MockClient((request) async {
+      if (status != 200) {
+        return http.Response(jsonEncode(body), status);
+      }
+      final payload = request.url.path.endsWith('search.json')
+          ? cities
+          : weather;
+      return http.Response(jsonEncode(payload), 200);
+    }),
+  );
+}
+
+/// Location is unavailable in tests, so the app falls back to the saved city.
+class _FakeLocation extends LocationService {
+  @override
+  Future<String> currentQuery() =>
+      throw const LocationException(LocationFailure.unavailable);
+}
 
 void main() {
+  setUp(() => SharedPreferences.setMockInitialValues({}));
+
   testWidgets('renders the SkyCast weather dashboard', (
     WidgetTester tester,
   ) async {
-    await tester.pumpWidget(const SkyCastApp());
+    await tester.pumpWidget(SkyCastApp(service: _fakeService(), location: _FakeLocation()));
+    await tester.pumpAndSettle();
 
     expect(find.text('SkyCast'), findsOneWidget);
     expect(find.text('Colombo, Sri Lanka'), findsOneWidget);
@@ -25,14 +109,69 @@ void main() {
     expect(find.text('5-day forecast'), findsOneWidget);
   });
 
+  testWidgets('shows the city-not-found state for an unknown city', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      SkyCastApp(
+        location: _FakeLocation(),
+        service: _fakeService(
+          status: 400,
+          body: {
+            'error': {'code': 1006, 'message': 'No matching location found.'},
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('City not found'), findsOneWidget);
+  });
+
+  testWidgets('renders weather details from the highlights link', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      SkyCastApp(service: _fakeService(), location: _FakeLocation()),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('See details'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(DetailsScreen), findsOneWidget);
+    expect(find.text('06:12 AM'), findsOneWidget);
+    expect(find.text('06:20 PM'), findsOneWidget);
+    expect(find.text('1012 hPa'), findsOneWidget);
+    expect(find.text('10 km'), findsOneWidget);
+  });
+
+  testWidgets('persists the chosen theme', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      SkyCastApp(service: _fakeService(), location: _FakeLocation()),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Settings'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Light Theme'));
+    await tester.pumpAndSettle();
+
+    expect(AppSettings.instance.themeMode, ThemeMode.light);
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString('theme_mode'), 'light');
+    await AppSettings.instance.setThemeMode(ThemeMode.dark);
+  });
+
   testWidgets('renders and switches the detailed forecast view', (
     WidgetTester tester,
   ) async {
-    await tester.pumpWidget(const MaterialApp(home: ForecastScreen()));
+    final report = await _fakeService().fetchWeather('Colombo');
+    await tester.pumpWidget(MaterialApp(home: ForecastScreen(report: report)));
 
     expect(find.text('Weather Forecast'), findsOneWidget);
+    expect(find.text('Colombo, Sri Lanka'), findsOneWidget);
     expect(find.text('Hourly forecast'), findsOneWidget);
-    expect(find.text('Temperature today'), findsOneWidget);
+    expect(find.text('Temperature next 24 hours'), findsOneWidget);
 
     await tester.tap(find.text('5 Days'));
     await tester.pumpAndSettle();
@@ -49,35 +188,51 @@ void main() {
   testWidgets('renders and filters the city search screen', (
     WidgetTester tester,
   ) async {
-    await tester.pumpWidget(const MaterialApp(home: CitySearchScreen()));
+    SharedPreferences.setMockInitialValues({
+      'recent_searches': ['Colombo'],
+    });
+    await tester.pumpWidget(
+      MaterialApp(home: CitySearchScreen(service: _fakeService())),
+    );
+    await tester.pumpAndSettle();
 
     expect(find.text('Search City'), findsOneWidget);
     expect(find.text('Recent searches'), findsOneWidget);
     expect(find.text('Colombo'), findsOneWidget);
     expect(find.text('Use My Location'), findsOneWidget);
 
-    await tester.enterText(find.byType(TextField), 'Kandy');
+    await tester.enterText(find.byType(TextField), 'Kan');
     await tester.pump(const Duration(milliseconds: 500));
+    await tester.pumpAndSettle();
 
     expect(find.text('Suggestions'), findsOneWidget);
-    expect(find.text('Kandy'), findsNWidgets(2));
+    expect(find.text('Kandy'), findsOneWidget);
+    expect(find.text('Central, Sri Lanka'), findsOneWidget);
     expect(find.text('Colombo'), findsNothing);
   });
 
   testWidgets('renders saved cities and opens city details', (
     WidgetTester tester,
   ) async {
-    await tester.pumpWidget(const MaterialApp(home: SavedCitiesScreen()));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SavedCitiesScreen(
+          currentCity: 'Colombo',
+          service: _fakeService(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
 
     expect(find.text('Saved Cities'), findsOneWidget);
     expect(find.text('Colombo'), findsOneWidget);
-    expect(find.text('Kandy'), findsOneWidget);
     expect(find.text('Current'), findsOneWidget);
+    expect(find.text('29°'), findsOneWidget);
     expect(find.text('Add City'), findsOneWidget);
 
-    await tester.tap(find.text('Galle'));
+    await tester.tap(find.text('Colombo'));
     await tester.pumpAndSettle();
-    expect(find.text('Light rain'), findsOneWidget);
+    expect(find.text('Weather Forecast'), findsOneWidget);
   });
 
   testWidgets('renders settings and changes preferences', (
@@ -88,12 +243,18 @@ void main() {
     expect(find.text('Settings'), findsOneWidget);
     expect(find.text('Appearance'), findsOneWidget);
     expect(find.text('Weather preferences'), findsOneWidget);
-    expect(find.text('Daily weather summary'), findsOneWidget);
+    expect(find.text('Automatic location'), findsOneWidget);
     await tester.tap(find.text('Dark Theme'));
     await tester.pump();
     await tester.drag(find.byType(ListView), const Offset(0, -900));
     await tester.pumpAndSettle();
     expect(find.text('About SkyCast'), findsOneWidget);
+    await tester.tap(find.text('Privacy Policy'));
+    await tester.pumpAndSettle();
+    expect(find.text('Close'), findsOneWidget);
+    await tester.tap(find.text('Close'));
+    await tester.pumpAndSettle();
+    expect(find.text('Close'), findsNothing);
   });
 
   testWidgets('renders explicit weather request states', (

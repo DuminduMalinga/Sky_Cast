@@ -2,8 +2,14 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../services/city_store.dart';
+import '../services/location_service.dart';
+import '../services/weather_service.dart';
+
 class CitySearchScreen extends StatefulWidget {
-  const CitySearchScreen({super.key});
+  const CitySearchScreen({this.service, super.key});
+
+  final WeatherService? service;
 
   @override
   State<CitySearchScreen> createState() => _CitySearchScreenState();
@@ -12,26 +18,32 @@ class CitySearchScreen extends StatefulWidget {
 class _CitySearchScreenState extends State<CitySearchScreen> {
   final _searchController = TextEditingController();
   final _focusNode = FocusNode();
+  late final _service = widget.service ?? WeatherService();
   Timer? _loadingTimer;
   bool _isLoading = false;
   String _query = '';
+  String? _error;
+  List<_CityResult> _results = const [];
 
-  final List<_CityResult> _recentCities = [
-    const _CityResult(
-      city: 'Colombo',
-      country: 'Sri Lanka',
-      temperature: '29°',
-      icon: Icons.cloud_queue_rounded,
-    ),
-    const _CityResult(city: 'Kandy', country: 'Sri Lanka'),
-    const _CityResult(city: 'Galle', country: 'Sri Lanka'),
-    const _CityResult(city: 'Jaffna', country: 'Sri Lanka'),
-  ];
+  final _store = CityStore();
+  final _location = LocationService();
+  List<_CityResult> _recentCities = const [];
 
   @override
   void initState() {
     super.initState();
     _focusNode.requestFocus();
+    _loadRecent();
+  }
+
+  Future<void> _loadRecent() async {
+    final names = await _store.loadRecent();
+    if (!mounted) return;
+    setState(() {
+      _recentCities = [
+        for (final name in names) _CityResult(city: name, country: ''),
+      ];
+    });
   }
 
   @override
@@ -44,13 +56,42 @@ class _CitySearchScreenState extends State<CitySearchScreen> {
 
   void _onQueryChanged(String value) {
     _loadingTimer?.cancel();
+    final query = value.trim();
     setState(() {
-      _query = value.trim();
-      _isLoading = value.trim().isNotEmpty;
+      _query = query;
+      _isLoading = query.isNotEmpty;
+      _error = null;
     });
-    if (value.trim().isNotEmpty) {
-      _loadingTimer = Timer(const Duration(milliseconds: 450), () {
-        if (mounted) setState(() => _isLoading = false);
+    if (query.isNotEmpty) {
+      _loadingTimer = Timer(
+        const Duration(milliseconds: 450),
+        () => _search(query),
+      );
+    }
+  }
+
+  Future<void> _search(String query) async {
+    try {
+      final suggestions = await _service.searchCities(query);
+      if (!mounted || query != _query) return;
+      setState(() {
+        _results = [
+          for (final city in suggestions)
+            _CityResult(
+              city: city.name,
+              country: [
+                if (city.region.isNotEmpty) city.region,
+                city.country,
+              ].join(', '),
+            ),
+        ];
+        _isLoading = false;
+      });
+    } on WeatherException {
+      if (!mounted || query != _query) return;
+      setState(() {
+        _error = 'Could not search right now. Check your connection.';
+        _isLoading = false;
       });
     }
   }
@@ -61,32 +102,28 @@ class _CitySearchScreenState extends State<CitySearchScreen> {
     _focusNode.requestFocus();
   }
 
-  void _selectCity(_CityResult city) {
+  Future<void> _selectCity(_CityResult city) async {
+    await _store.addRecent(city.city);
+    if (!mounted) return;
     Navigator.of(context).pop(city.city);
   }
 
-  void _removeRecent(_CityResult city) {
-    setState(() => _recentCities.remove(city));
+  Future<void> _removeRecent(_CityResult city) async {
+    await _store.removeRecent(city.city);
+    await _loadRecent();
   }
 
-  void _useLocation() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Location access is required to find nearby weather.'),
-      ),
-    );
-  }
-
-  List<_CityResult> get _matches {
-    if (_query.isEmpty) return const [];
-    final normalizedQuery = _query.toLowerCase();
-    return _recentCities
-        .where(
-          (city) =>
-              city.city.toLowerCase().contains(normalizedQuery) ||
-              city.country.toLowerCase().contains(normalizedQuery),
-        )
-        .toList();
+  Future<void> _useLocation() async {
+    try {
+      final query = await _location.currentQuery();
+      if (!mounted) return;
+      Navigator.of(context).pop(query);
+    } on LocationException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    }
   }
 
   @override
@@ -122,8 +159,14 @@ class _CitySearchScreenState extends State<CitySearchScreen> {
             const SizedBox(height: 30),
             if (_isLoading)
               const _SearchLoadingState()
+            else if (_error != null)
+              _EmptyState(
+                icon: Icons.cloud_off_rounded,
+                title: 'Search unavailable',
+                message: _error!,
+              )
             else if (showingResults)
-              _SearchResults(results: _matches, onSelect: _selectCity)
+              _SearchResults(results: _results, onSelect: _selectCity)
             else
               _RecentSearches(
                 cities: _recentCities,
@@ -141,14 +184,10 @@ class _CityResult {
   const _CityResult({
     required this.city,
     required this.country,
-    this.temperature,
-    this.icon,
   });
 
   final String city;
   final String country;
-  final String? temperature;
-  final IconData? icon;
 }
 
 class _SearchField extends StatelessWidget {
@@ -335,11 +374,6 @@ class _SearchResults extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(height: 8),
-        const Text(
-          'Only saved cities are shown until live weather search is connected.',
-          style: TextStyle(color: Color(0xFF93A0B3), fontSize: 11),
-        ),
       ],
     );
   }
@@ -376,7 +410,7 @@ class _CityListItem extends StatelessWidget {
                   borderRadius: BorderRadius.circular(13),
                 ),
                 child: Icon(
-                  city.icon ?? Icons.location_city_rounded,
+                  Icons.location_city_rounded,
                   color: const Color(0xFF63B8FF),
                   size: 22,
                 ),
@@ -394,29 +428,19 @@ class _CityListItem extends StatelessWidget {
                         fontWeight: FontWeight.w800,
                       ),
                     ),
-                    const SizedBox(height: 3),
-                    Text(
-                      city.country,
-                      style: TextStyle(
-                        color: Theme.of(context).hintColor,
-                        fontSize: 12,
+                    if (city.country.isNotEmpty) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        city.country,
+                        style: TextStyle(
+                          color: Theme.of(context).hintColor,
+                          fontSize: 12,
+                        ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ),
-              if (city.temperature != null)
-                Padding(
-                  padding: const EdgeInsets.only(right: 10),
-                  child: Text(
-                    city.temperature!,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.onSurface,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
               trailing,
             ],
           ),

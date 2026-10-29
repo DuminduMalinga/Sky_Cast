@@ -1,49 +1,164 @@
 import 'package:flutter/material.dart';
 
+import '../models/weather.dart';
+import '../services/app_settings.dart';
+import '../services/city_store.dart';
+import '../services/location_service.dart';
+import '../services/weather_service.dart';
+import '../utils/format.dart';
+import 'details_screen.dart';
 import 'forecast_screen.dart';
 import 'city_search_screen.dart';
 import 'saved_cities_screen.dart';
 import 'settings_screen.dart';
+import 'weather_states_screen.dart';
 
 class WeatherHomePage extends StatefulWidget {
-  const WeatherHomePage({super.key});
+  const WeatherHomePage({this.service, this.location, super.key});
+
+  final WeatherService? service;
+  final LocationService? location;
 
   @override
   State<WeatherHomePage> createState() => _WeatherHomePageState();
 }
 
-class _WeatherHomePageState extends State<WeatherHomePage> {
+class _WeatherHomePageState extends State<WeatherHomePage>
+    with SettingsListener<WeatherHomePage> {
+  late final _service = widget.service ?? WeatherService();
   int _selectedTab = 0;
-
-  static const _hours = [
-    ('Now', '29°', Icons.wb_sunny_rounded),
-    ('11 AM', '30°', Icons.wb_sunny_rounded),
-    ('12 PM', '31°', Icons.wb_sunny_rounded),
-    ('1 PM', '32°', Icons.wb_sunny_rounded),
-    ('2 PM', '32°', Icons.cloud_rounded),
-    ('3 PM', '31°', Icons.cloud_queue_rounded),
-    ('4 PM', '30°', Icons.cloud_rounded),
-    ('5 PM', '29°', Icons.wb_twilight_rounded),
-  ];
-
-  static const _days = [
-    ('Today', 'Partly cloudy', '25°', '32°', Icons.cloud_queue_rounded),
-    ('Tomorrow', 'Sunny', '25°', '33°', Icons.wb_sunny_rounded),
-    ('Wed, 24 Apr', 'Light rain', '24°', '30°', Icons.grain_rounded),
-    ('Thu, 25 Apr', 'Mostly sunny', '25°', '32°', Icons.wb_sunny_rounded),
-    ('Fri, 26 Apr', 'Scattered rain', '24°', '31°', Icons.water_drop_rounded),
-  ];
-
-  void _showSearch() {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute<void>(builder: (_) => const CitySearchScreen()));
-  }
+  final _store = CityStore();
+  late final _location = widget.location ?? LocationService();
+  late String _city = CityStore.defaultCity;
+  WeatherReport? _report;
+  WeatherRequestState? _state = WeatherRequestState.loading;
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
+  void initState() {
+    super.initState();
+    _init();
+  }
+
+  Future<void> _init() async {
+    _city = await _store.loadCurrent();
+    if (!mounted) return;
+    if (AppSettings.instance.autoLocation) {
+      try {
+        final query = await _location.currentQuery();
+        if (!mounted) return;
+        await _load(query: query);
+        return;
+      } catch (_) {
+        // Fall back to the last selected city.
+      }
+    }
+    await _load();
+  }
+
+  /// Loads weather for [query] (defaults to the current city). On success the
+  /// canonical city name becomes the current city, so a "lat,lon" query from
+  /// the device location is stored as a readable name.
+  Future<void> _load({String? query}) async {
+    if (_report == null || _state != null) {
+      setState(() => _state = WeatherRequestState.loading);
+    }
+    try {
+      final report = await _service.fetchWeather(query ?? _city);
+      if (!mounted) return;
+      _city = report.city;
+      _store.saveCurrent(report.city);
+      setState(() {
+        _report = report;
+        _state = null;
+      });
+    } on WeatherException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _state = switch (error.failure) {
+          WeatherFailure.cityNotFound => WeatherRequestState.cityNotFound,
+          WeatherFailure.network => WeatherRequestState.offline,
+          WeatherFailure.server => WeatherRequestState.networkError,
+        };
+      });
+    }
+  }
+
+  Future<void> _useLocation() async {
+    try {
+      final query = await _location.currentQuery();
+      if (!mounted) return;
+      await _load(query: query);
+    } on LocationException catch (error) {
+      if (!mounted) return;
+      if (error.failure == LocationFailure.deniedForever) {
+        await _location.openSettings();
+        return;
+      }
+      if (_report == null) {
+        setState(() => _state = WeatherRequestState.locationPermissionDenied);
+      } else {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
+      }
+    }
+  }
+
+  Future<void> _showSearch() async {
+    final city = await Navigator.of(
+      context,
+    ).push<String>(MaterialPageRoute(builder: (_) => CitySearchScreen(service: _service)));
+    if (city == null || !mounted) return;
+    _store.addRecent(city);
+    _load(query: city);
+  }
+
+  Widget _buildBody(BuildContext context) {
+    final report = _report;
+    final state = _state;
+    if (report == null || state != null) {
+      return SafeArea(
+        child: WeatherStateView(
+          state: state ?? WeatherRequestState.loading,
+          hasCachedWeather: report != null,
+          lastUpdated: report == null ? null : clock(report.localTime),
+          cachedSummary: report == null
+              ? null
+              : '${report.city}  ·  ${degrees(report.tempC)}\n'
+                    '${report.condition}'
+                    '${report.today == null ? '' : '  ·  H ${degrees(report.today!.maxC)} / L ${degrees(report.today!.minC)}'}',
+          onRetry: _load,
+          onSearch: _showSearch,
+          onEnableLocation: _useLocation,
+        ),
+      );
+    }
+    final hours = [
+      for (var i = 0; i < report.hours.length && i < 24; i++)
+        (
+          i == 0 ? 'Now' : hourLabel(report.hours[i].time),
+          degrees(report.hours[i].tempC),
+          weatherIcon(report.hours[i].conditionCode, isDay: report.hours[i].isDay),
+        ),
+    ];
+    final days = [
+      for (var i = 0; i < report.days.length; i++)
+        (
+          i == 0
+              ? 'Today'
+              : i == 1
+              ? 'Tomorrow'
+              : '${weekdays[report.days[i].date.weekday - 1]}, '
+                    '${report.days[i].date.day} ${months[report.days[i].date.month - 1]}',
+          report.days[i].condition,
+          degrees(report.days[i].minC),
+          degrees(report.days[i].maxC),
+          weatherIcon(report.days[i].conditionCode),
+        ),
+    ];
+    return SafeArea(
+      child: RefreshIndicator(
+        onRefresh: _load,
         child: LayoutBuilder(
           builder: (context, constraints) {
             final horizontalPadding = constraints.maxWidth > 600 ? 32.0 : 20.0;
@@ -58,7 +173,10 @@ class _WeatherHomePageState extends State<WeatherHomePage> {
                     0,
                   ),
                   sliver: SliverToBoxAdapter(
-                    child: _TopBar(onSearch: _showSearch),
+                    child: _TopBar(
+                      location: '${report.city}, ${report.country}',
+                      onSearch: _showSearch,
+                    ),
                   ),
                 ),
                 SliverPadding(
@@ -70,7 +188,8 @@ class _WeatherHomePageState extends State<WeatherHomePage> {
                   ),
                   sliver: SliverToBoxAdapter(
                     child: _HeroWeatherCard(
-                      onLocationTap: () => _showLocationSnackBar(context),
+                      report: report,
+                      onLocationTap: _useLocation,
                     ),
                   ),
                 ),
@@ -85,9 +204,10 @@ class _WeatherHomePageState extends State<WeatherHomePage> {
                     child: _SectionHeading(
                       title: 'Today’s highlights',
                       action: 'See details',
-                      onTap: () => _showLocationSnackBar(
-                        context,
-                        message: 'Detailed insights coming soon',
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => DetailsScreen(report: report),
+                        ),
                       ),
                     ),
                   ),
@@ -107,30 +227,30 @@ class _WeatherHomePageState extends State<WeatherHomePage> {
                       childAspectRatio: constraints.maxWidth > 600 ? 2.8 : 1.65,
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
-                      children: const [
+                      children: [
                         _HighlightCard(
                           label: 'Feels like',
-                          value: '32°',
+                          value: degrees(report.feelsLikeC),
                           icon: Icons.thermostat_rounded,
-                          color: Color(0xFFFFA866),
+                          color: const Color(0xFFFFA866),
                         ),
                         _HighlightCard(
                           label: 'Humidity',
-                          value: '78%',
+                          value: '${report.humidity}%',
                           icon: Icons.water_drop_outlined,
-                          color: Color(0xFF63B8FF),
+                          color: const Color(0xFF63B8FF),
                         ),
                         _HighlightCard(
                           label: 'Wind speed',
-                          value: '14 km/h',
+                          value: wind(report.windKph),
                           icon: Icons.air_rounded,
-                          color: Color(0xFF6D82B6),
+                          color: const Color(0xFF6D82B6),
                         ),
                         _HighlightCard(
                           label: 'UV index',
-                          value: '6',
+                          value: report.uv.round().toString(),
                           icon: Icons.wb_sunny_outlined,
-                          color: Color(0xFFFFB84D),
+                          color: const Color(0xFFFFB84D),
                         ),
                       ],
                     ),
@@ -159,10 +279,10 @@ class _WeatherHomePageState extends State<WeatherHomePage> {
                       ),
                       scrollDirection: Axis.horizontal,
                       physics: const BouncingScrollPhysics(),
-                      itemCount: _hours.length,
+                      itemCount: hours.length,
                       separatorBuilder: (_, _) => const SizedBox(width: 10),
                       itemBuilder: (context, index) {
-                        final hour = _hours[index];
+                        final hour = hours[index];
                         return _HourlyCard(
                           time: hour.$1,
                           temperature: hour.$2,
@@ -192,7 +312,7 @@ class _WeatherHomePageState extends State<WeatherHomePage> {
                     28,
                   ),
                   sliver: SliverToBoxAdapter(
-                    child: _FiveDayForecast(days: _days),
+                    child: _FiveDayForecast(days: days),
                   ),
                 ),
               ],
@@ -200,19 +320,33 @@ class _WeatherHomePageState extends State<WeatherHomePage> {
           },
         ),
       ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: _buildBody(context),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedTab,
         onDestinationSelected: (index) {
           if (index == 1) {
+            final report = _report;
+            if (report == null) return;
             Navigator.of(context).push(
-              MaterialPageRoute<void>(builder: (_) => const ForecastScreen()),
+              MaterialPageRoute<void>(
+                builder: (_) => ForecastScreen(report: report),
+              ),
             );
             return;
           }
           if (index == 2) {
             Navigator.of(context).push(
               MaterialPageRoute<void>(
-                builder: (_) => const SavedCitiesScreen(),
+                builder: (_) => SavedCitiesScreen(
+                  currentCity: _city,
+                  service: _service,
+                ),
               ),
             );
             return;
@@ -254,17 +388,12 @@ class _WeatherHomePageState extends State<WeatherHomePage> {
       ),
     );
   }
-
-  void _showLocationSnackBar(BuildContext context, {String? message}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message ?? 'Colombo is your current location')),
-    );
-  }
 }
 
 class _TopBar extends StatelessWidget {
-  const _TopBar({required this.onSearch});
+  const _TopBar({required this.location, required this.onSearch});
 
+  final String location;
   final VoidCallback onSearch;
 
   @override
@@ -295,34 +424,37 @@ class _TopBar extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 11),
-        const Expanded(
+        Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 'SkyCast',
                 style: TextStyle(
-                  color: Color(0xFF101B36),
+                  color: Theme.of(context).colorScheme.onSurface,
                   fontSize: 20,
                   fontWeight: FontWeight.w800,
                   letterSpacing: -0.5,
                 ),
               ),
-              SizedBox(height: 1),
+              const SizedBox(height: 1),
               Row(
                 children: [
-                  Icon(
+                  const Icon(
                     Icons.location_on_rounded,
                     color: Color(0xFF6D82B6),
                     size: 13,
                   ),
-                  SizedBox(width: 3),
-                  Text(
-                    'Colombo, Sri Lanka',
-                    style: TextStyle(
-                      color: Color(0xFF6D82B6),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
+                  const SizedBox(width: 3),
+                  Flexible(
+                    child: Text(
+                      location,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFF6D82B6),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ),
                 ],
@@ -331,12 +463,6 @@ class _TopBar extends StatelessWidget {
           ),
         ),
         _IconButton(icon: Icons.search_rounded, onTap: onSearch),
-        const SizedBox(width: 8),
-        const CircleAvatar(
-          radius: 19,
-          backgroundColor: Color(0xFFDCEBFA),
-          child: Icon(Icons.person_outline_rounded, color: Color(0xFF31537F)),
-        ),
       ],
     );
   }
@@ -351,7 +477,7 @@ class _IconButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.white,
+      color: Theme.of(context).cardColor,
       borderRadius: BorderRadius.circular(13),
       child: InkWell(
         onTap: onTap,
@@ -367,8 +493,9 @@ class _IconButton extends StatelessWidget {
 }
 
 class _HeroWeatherCard extends StatelessWidget {
-  const _HeroWeatherCard({required this.onLocationTap});
+  const _HeroWeatherCard({required this.report, required this.onLocationTap});
 
+  final WeatherReport report;
   final VoidCallback onLocationTap;
 
   @override
@@ -416,9 +543,12 @@ class _HeroWeatherCard extends StatelessWidget {
                     size: 13,
                   ),
                   const SizedBox(width: 7),
-                  const Text(
-                    'TUESDAY, 23 APRIL 2024',
-                    style: TextStyle(
+                  Text(
+                    '${weekdaysLong[report.localTime.weekday - 1]}, '
+                    '${report.localTime.day} '
+                    '${months[report.localTime.month - 1].toUpperCase()} '
+                    '${report.localTime.year}',
+                    style: const TextStyle(
                       color: Color(0xD9FFFFFF),
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
@@ -437,9 +567,9 @@ class _HeroWeatherCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 14),
-              const Text(
-                '29°',
-                style: TextStyle(
+              Text(
+                degrees(report.tempC),
+                style: const TextStyle(
                   color: Colors.white,
                   fontSize: 62,
                   height: 0.95,
@@ -448,35 +578,44 @@ class _HeroWeatherCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 8),
-              const Text(
-                'Partly Cloudy',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 17,
-                  fontWeight: FontWeight.w600,
+              SizedBox(
+                width: 150,
+                child: Text(
+                  report.condition,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
               const SizedBox(height: 5),
-              const Text(
-                'H 32°  ·  L 25°',
-                style: TextStyle(
-                  color: Color(0xD9FFFFFF),
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
+              if (report.today != null)
+                Text(
+                  'H ${degrees(report.today!.maxC)}  ·  L ${degrees(report.today!.minC)}',
+                  style: const TextStyle(
+                    color: Color(0xD9FFFFFF),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
-              ),
               const Spacer(),
-              const Row(
+              Row(
                 children: [
-                  Icon(
+                  const Icon(
                     Icons.schedule_rounded,
                     color: Color(0xBFFFFFFF),
                     size: 14,
                   ),
-                  SizedBox(width: 6),
+                  const SizedBox(width: 6),
                   Text(
-                    'Local time  10:42 AM',
-                    style: TextStyle(color: Color(0xD9FFFFFF), fontSize: 11),
+                    'Local time  ${clock(report.localTime)}',
+                    style: const TextStyle(
+                      color: Color(0xD9FFFFFF),
+                      fontSize: 11,
+                    ),
                   ),
                 ],
               ),
@@ -566,8 +705,8 @@ class _SectionHeading extends StatelessWidget {
       children: [
         Text(
           title,
-          style: const TextStyle(
-            color: Color(0xFF101B36),
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurface,
             fontSize: 17,
             fontWeight: FontWeight.w800,
           ),
@@ -608,7 +747,7 @@ class _HighlightCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: Theme.of(context).dividerColor),
       ),
@@ -656,15 +795,15 @@ class _HourlyCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final foreground = isCurrent ? Colors.white : const Color(0xFF101B36);
+    final foreground = isCurrent ? Colors.white : Theme.of(context).colorScheme.onSurface;
     return Container(
       width: 67,
       padding: const EdgeInsets.symmetric(vertical: 12),
       decoration: BoxDecoration(
-        color: isCurrent ? const Color(0xFF5BA9E8) : Colors.white,
+        color: isCurrent ? const Color(0xFF5BA9E8) : Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(17),
         border: Border.all(
-          color: isCurrent ? Colors.transparent : const Color(0xFFE9EFF7),
+          color: isCurrent ? Colors.transparent : Theme.of(context).dividerColor,
         ),
         boxShadow: isCurrent
             ? const [
@@ -768,8 +907,8 @@ class _ForecastRow extends StatelessWidget {
             width: 83,
             child: Text(
               day,
-              style: const TextStyle(
-                color: Color(0xFF101B36),
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurface,
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
               ),
@@ -794,8 +933,8 @@ class _ForecastRow extends StatelessWidget {
           const SizedBox(width: 13),
           Text(
             high,
-            style: const TextStyle(
-              color: Color(0xFF101B36),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface,
               fontSize: 14,
               fontWeight: FontWeight.w800,
             ),

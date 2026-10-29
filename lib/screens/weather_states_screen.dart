@@ -13,6 +13,7 @@ class WeatherStateView extends StatelessWidget {
     required this.state,
     this.hasCachedWeather = false,
     this.lastUpdated,
+    this.cachedSummary,
     this.onRetry,
     this.onSearch,
     this.onEnableLocation,
@@ -22,6 +23,7 @@ class WeatherStateView extends StatelessWidget {
   final WeatherRequestState state;
   final bool hasCachedWeather;
   final String? lastUpdated;
+  final String? cachedSummary;
   final VoidCallback? onRetry;
   final VoidCallback? onSearch;
   final VoidCallback? onEnableLocation;
@@ -68,6 +70,7 @@ class WeatherStateView extends StatelessWidget {
     if (hasCachedWeather) {
       return _CachedOfflineState(
         lastUpdated: lastUpdated ?? 'Recently',
+        summary: cachedSummary,
         onRetry: onRetry,
       );
     }
@@ -186,8 +189,8 @@ class _StatePreview extends StatelessWidget {
               alignment: Alignment.centerLeft,
               child: Text(
                 title,
-                style: const TextStyle(
-                  color: Color(0xFF101B36),
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurface,
                   fontSize: 13,
                   fontWeight: FontWeight.w800,
                 ),
@@ -275,8 +278,8 @@ class _MessageState extends StatelessWidget {
           Text(
             title,
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Color(0xFF101B36),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface,
               fontSize: 18,
               fontWeight: FontWeight.w800,
             ),
@@ -328,9 +331,14 @@ class _MessageState extends StatelessWidget {
 }
 
 class _CachedOfflineState extends StatelessWidget {
-  const _CachedOfflineState({required this.lastUpdated, required this.onRetry});
+  const _CachedOfflineState({
+    required this.lastUpdated,
+    required this.onRetry,
+    this.summary,
+  });
 
   final String lastUpdated;
+  final String? summary;
   final VoidCallback? onRetry;
 
   @override
@@ -366,18 +374,18 @@ class _CachedOfflineState extends StatelessWidget {
               color: const Color(0xFFEAF5FF),
               borderRadius: BorderRadius.circular(16),
             ),
-            child: const Row(
+            child: Row(
               children: [
-                Icon(
+                const Icon(
                   Icons.cloud_queue_rounded,
                   color: Color(0xFF63B8FF),
                   size: 30,
                 ),
-                SizedBox(width: 12),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'Colombo  ·  29°\nPartly cloudy  ·  H 32° / L 25°',
-                    style: TextStyle(
+                    summary ?? 'Colombo  ·  29°\nPartly cloudy  ·  H 32° / L 25°',
+                    style: const TextStyle(
                       color: Color(0xFF31537F),
                       fontSize: 12,
                       height: 1.5,

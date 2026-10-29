@@ -1,80 +1,126 @@
 import 'package:flutter/material.dart';
 
+import '../models/weather.dart';
+import '../services/app_settings.dart';
+import '../services/city_store.dart';
+import '../services/weather_service.dart';
+import '../utils/format.dart';
 import 'city_search_screen.dart';
+import 'forecast_screen.dart';
 
 class SavedCitiesScreen extends StatefulWidget {
-  const SavedCitiesScreen({super.key});
+  const SavedCitiesScreen({
+    required this.currentCity,
+    this.service,
+    super.key,
+  });
+
+  /// The city shown on the home screen; it is highlighted and saved by default.
+  final String currentCity;
+  final WeatherService? service;
 
   @override
   State<SavedCitiesScreen> createState() => _SavedCitiesScreenState();
 }
 
-class _SavedCitiesScreenState extends State<SavedCitiesScreen> {
-  final List<SavedCity> _cities = [
-    const SavedCity(
-      name: 'Colombo',
-      country: 'Sri Lanka',
-      temperature: '29°',
-      condition: 'Partly cloudy',
-      high: '32°',
-      low: '25°',
-      icon: Icons.cloud_queue_rounded,
-      isSelected: true,
-    ),
-    const SavedCity(
-      name: 'Kandy',
-      country: 'Sri Lanka',
-      temperature: '27°',
-      condition: 'Mostly sunny',
-      high: '30°',
-      low: '23°',
-      icon: Icons.wb_sunny_rounded,
-    ),
-    const SavedCity(
-      name: 'Galle',
-      country: 'Sri Lanka',
-      temperature: '28°',
-      condition: 'Light rain',
-      high: '30°',
-      low: '25°',
-      icon: Icons.grain_rounded,
-    ),
-    const SavedCity(
-      name: 'Jaffna',
-      country: 'Sri Lanka',
-      temperature: '31°',
-      condition: 'Sunny',
-      high: '34°',
-      low: '27°',
-      icon: Icons.wb_sunny_rounded,
-    ),
-  ];
+class _SavedCitiesScreenState extends State<SavedCitiesScreen>
+    with SettingsListener<SavedCitiesScreen> {
+  late final _service = widget.service ?? WeatherService();
+  final _store = CityStore();
+  final List<String> _names = [];
+  final Map<String, WeatherReport> _reports = {};
+  final Set<String> _failed = {};
+  bool _loaded = false;
 
-  Future<void> _addCity() async {
-    await Navigator.of(
-      context,
-    ).push(MaterialPageRoute<void>(builder: (_) => const CitySearchScreen()));
+  @override
+  void initState() {
+    super.initState();
+    _init();
   }
 
-  void _removeCity(SavedCity city) {
-    final index = _cities.indexOf(city);
-    setState(() => _cities.remove(city));
+  Future<void> _init() async {
+    final saved = await _store.loadSaved();
+    if (!mounted) return;
+    setState(() {
+      _names.addAll(saved ?? [widget.currentCity]);
+      _loaded = true;
+    });
+    if (saved == null) await _store.saveSaved(_names);
+    await _refresh();
+  }
+
+  Future<void> _refresh() => Future.wait([for (final n in _names) _fetch(n)]);
+
+  Future<void> _fetch(String name) async {
+    setState(() => _failed.remove(name));
+    try {
+      final report = await _service.fetchWeather(name);
+      if (!mounted) return;
+      setState(() => _reports[name] = report);
+    } on WeatherException {
+      if (!mounted) return;
+      setState(() => _failed.add(name));
+    }
+  }
+
+  Future<void> _addCity() async {
+    final picked = await Navigator.of(context).push<String>(
+      MaterialPageRoute(builder: (_) => CitySearchScreen(service: _service)),
+    );
+    if (picked == null || !mounted) return;
+    var city = picked;
+    if (isCoordinates(city)) {
+      // Device location: resolve to a city name before saving.
+      try {
+        final report = await _service.fetchWeather(city);
+        city = report.city;
+        _reports[city] = report;
+      } on WeatherException {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not load your location.')),
+        );
+        return;
+      }
+      if (!mounted) return;
+    }
+    if (_names.any((name) => name.toLowerCase() == city.toLowerCase())) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$city is already saved')),
+      );
+      return;
+    }
+    setState(() => _names.add(city));
+    await _store.saveSaved(_names);
+    await _fetch(city);
+  }
+
+  void _removeCity(String name) {
+    final index = _names.indexOf(name);
+    setState(() => _names.remove(name));
+    _store.saveSaved(_names);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('${city.name} removed from saved cities'),
+        content: Text('$name removed from saved cities'),
         action: SnackBarAction(
           label: 'Undo',
-          onPressed: () => setState(() => _cities.insert(index, city)),
+          onPressed: () {
+            setState(() => _names.insert(index, name));
+            _store.saveSaved(_names);
+          },
         ),
       ),
     );
   }
 
-  void _openCity(SavedCity city) {
+  void _openCity(String name) {
+    final report = _reports[name];
+    if (report == null) {
+      _fetch(name);
+      return;
+    }
     Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => CityWeatherDetailScreen(city: city),
-      ),
+      MaterialPageRoute<void>(builder: (_) => ForecastScreen(report: report)),
     );
   }
 
@@ -116,79 +162,86 @@ class _SavedCitiesScreenState extends State<SavedCitiesScreen> {
         ],
       ),
       body: SafeArea(
-        child: _cities.isEmpty
+        child: !_loaded
+            ? const Center(child: CircularProgressIndicator())
+            : _names.isEmpty
             ? const _SavedEmptyState()
-            : ListView(
-                physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(20, 10, 20, 28),
-                children: [
-                  const Text(
-                    'Your locations',
-                    style: TextStyle(
-                      color: Color(0xFF8290A8),
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
+            : RefreshIndicator(
+                onRefresh: _refresh,
+                child: ListView(
+                  physics: const AlwaysScrollableScrollPhysics(
+                    parent: BouncingScrollPhysics(),
                   ),
-                  const SizedBox(height: 13),
-                  ..._cities.map(
-                    (city) => Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: _SavedCityCard(
-                        city: city,
-                        onTap: () => _openCity(city),
-                        onRemove: () => _removeCity(city),
+                  padding: const EdgeInsets.fromLTRB(20, 10, 20, 28),
+                  children: [
+                    const Text(
+                      'Your locations',
+                      style: TextStyle(
+                        color: Color(0xFF8290A8),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'Weather updates refresh when live data is available.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Color(0xFF9AA8BA), fontSize: 11),
-                  ),
-                ],
+                    const SizedBox(height: 13),
+                    ..._names.map(
+                      (name) => Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _SavedCityCard(
+                          name: name,
+                          report: _reports[name],
+                          failed: _failed.contains(name),
+                          isCurrent:
+                              name.toLowerCase() ==
+                              widget.currentCity.toLowerCase(),
+                          onTap: () => _openCity(name),
+                          onRemove: () => _removeCity(name),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Pull down to refresh live weather.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Color(0xFF9AA8BA), fontSize: 11),
+                    ),
+                  ],
+                ),
               ),
       ),
     );
   }
 }
 
-class SavedCity {
-  const SavedCity({
-    required this.name,
-    required this.country,
-    required this.temperature,
-    required this.condition,
-    required this.high,
-    required this.low,
-    required this.icon,
-    this.isSelected = false,
-  });
-
-  final String name;
-  final String country;
-  final String temperature;
-  final String condition;
-  final String high;
-  final String low;
-  final IconData icon;
-  final bool isSelected;
-}
-
 class _SavedCityCard extends StatelessWidget {
   const _SavedCityCard({
-    required this.city,
+    required this.name,
+    required this.report,
+    required this.failed,
+    required this.isCurrent,
     required this.onTap,
     required this.onRemove,
   });
 
-  final SavedCity city;
+  final String name;
+  final WeatherReport? report;
+  final bool failed;
+  final bool isCurrent;
   final VoidCallback onTap;
   final VoidCallback onRemove;
 
   @override
   Widget build(BuildContext context) {
+    final report = this.report;
+    final today = report?.today;
+    final subtitle = report != null
+        ? report.country
+        : failed
+        ? 'Unable to load'
+        : 'Loading...';
+    final detail = report == null
+        ? (failed ? 'Tap to retry' : '')
+        : '${report.condition}'
+              '${today == null ? '' : '  ·  H ${degrees(today.maxC)} / L ${degrees(today.minC)}'}';
     return Material(
       color: Theme.of(context).cardColor,
       borderRadius: BorderRadius.circular(21),
@@ -200,10 +253,10 @@ class _SavedCityCard extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(21),
             border: Border.all(
-              color: city.isSelected
+              color: isCurrent
                   ? const Color(0xFF63B8FF)
                   : Theme.of(context).dividerColor,
-              width: city.isSelected ? 1.5 : 1,
+              width: isCurrent ? 1.5 : 1,
             ),
             boxShadow: const [
               BoxShadow(
@@ -219,13 +272,17 @@ class _SavedCityCard extends StatelessWidget {
                 width: 52,
                 height: 52,
                 decoration: BoxDecoration(
-                  color: city.isSelected
+                  color: isCurrent
                       ? Theme.of(context).colorScheme.surfaceContainerHighest
                       : Theme.of(context).scaffoldBackgroundColor,
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Icon(
-                  city.icon,
+                  report == null
+                      ? (failed
+                            ? Icons.cloud_off_rounded
+                            : Icons.cloud_queue_rounded)
+                      : weatherIcon(report.conditionCode, isDay: report.isDay),
                   color: const Color(0xFF63B8FF),
                   size: 28,
                 ),
@@ -237,15 +294,18 @@ class _SavedCityCard extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        Text(
-                          city.name,
-                          style: const TextStyle(
-                            color: Color(0xFF101B36),
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
+                        Flexible(
+                          child: Text(
+                            name,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.onSurface,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                            ),
                           ),
                         ),
-                        if (city.isSelected) ...[
+                        if (isCurrent) ...[
                           const SizedBox(width: 8),
                           Container(
                             padding: const EdgeInsets.symmetric(
@@ -253,7 +313,9 @@ class _SavedCityCard extends StatelessWidget {
                               vertical: 3,
                             ),
                             decoration: BoxDecoration(
-                              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.surfaceContainerHighest,
                               borderRadius: BorderRadius.circular(7),
                             ),
                             child: const Text(
@@ -270,7 +332,7 @@ class _SavedCityCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 3),
                     Text(
-                      city.country,
+                      subtitle,
                       style: const TextStyle(
                         color: Color(0xFF8290A8),
                         fontSize: 11,
@@ -278,7 +340,7 @@ class _SavedCityCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      '${city.condition}  ·  H ${city.high} / L ${city.low}',
+                      detail,
                       style: const TextStyle(
                         color: Color(0xFF647A9B),
                         fontSize: 11,
@@ -308,14 +370,24 @@ class _SavedCityCard extends StatelessWidget {
                       ),
                     ],
                   ),
-                  Text(
-                    city.temperature,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.onSurface,
-                      fontSize: 25,
-                      fontWeight: FontWeight.w300,
+                  if (report != null)
+                    Text(
+                      degrees(report.tempC),
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurface,
+                        fontSize: 25,
+                        fontWeight: FontWeight.w300,
+                      ),
+                    )
+                  else if (!failed)
+                    const Padding(
+                      padding: EdgeInsets.only(right: 12, top: 6),
+                      child: SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
                     ),
-                  ),
                 ],
               ),
             ],
@@ -371,89 +443,6 @@ class _SavedEmptyState extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class CityWeatherDetailScreen extends StatelessWidget {
-  const CityWeatherDetailScreen({required this.city, super.key});
-
-  final SavedCity city;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          tooltip: 'Back',
-          onPressed: () => Navigator.of(context).pop(),
-          icon: const Icon(Icons.arrow_back_rounded),
-        ),
-        title: Text(
-          city.name,
-          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
-        ),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          Container(
-            padding: const EdgeInsets.all(22),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(24),
-              gradient: const LinearGradient(
-                colors: [Color(0xFF274A80), Color(0xFF559AD1)],
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  city.country,
-                  style: const TextStyle(
-                    color: Color(0xD9FFFFFF),
-                    fontSize: 13,
-                  ),
-                ),
-                const SizedBox(height: 18),
-                Text(
-                  city.temperature,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 58,
-                    fontWeight: FontWeight.w300,
-                  ),
-                ),
-                Text(
-                  city.condition,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'H ${city.high}  ·  L ${city.low}',
-                  style: const TextStyle(
-                    color: Color(0xD9FFFFFF),
-                    fontSize: 13,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-          const Text(
-            'Detailed weather data can be loaded here from the selected city’s API response.',
-            style: TextStyle(
-              color: Color(0xFF8290A8),
-              fontSize: 13,
-              height: 1.4,
-            ),
-          ),
-        ],
       ),
     );
   }

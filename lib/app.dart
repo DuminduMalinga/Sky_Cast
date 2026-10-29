@@ -1,19 +1,36 @@
 import 'package:flutter/material.dart';
 
+import 'package:flutter/services.dart';
+
 import 'screens/home_screen.dart';
+import 'services/app_settings.dart';
+import 'services/location_service.dart';
+import 'services/weather_service.dart';
 
 class SkyCastApp extends StatefulWidget {
-  const SkyCastApp({super.key});
+  const SkyCastApp({this.service, this.location, super.key});
+
+  final WeatherService? service;
+  final LocationService? location;
 
   @override
   State<SkyCastApp> createState() => _SkyCastAppState();
 }
 
 class _SkyCastAppState extends State<SkyCastApp> {
-  final _themeMode = ValueNotifier<ThemeMode>(ThemeMode.dark);
+  final _themeMode = ValueNotifier<ThemeMode>(AppSettings.instance.themeMode);
+
+  @override
+  void initState() {
+    super.initState();
+    _themeMode.addListener(_persistTheme);
+  }
+
+  void _persistTheme() => AppSettings.instance.setThemeMode(_themeMode.value);
 
   @override
   void dispose() {
+    _themeMode.removeListener(_persistTheme);
     _themeMode.dispose();
     super.dispose();
   }
@@ -31,12 +48,31 @@ class _SkyCastAppState extends State<SkyCastApp> {
             themeMode: themeMode,
             theme: _buildTheme(Brightness.light),
             darkTheme: _buildTheme(Brightness.dark),
-            home: const WeatherHomePage(),
+            builder: (context, child) {
+              // Light icons on the dark theme, dark icons on the light one.
+              final dark = Theme.of(context).brightness == Brightness.dark;
+              return AnnotatedRegion<SystemUiOverlayStyle>(
+                value: _overlayStyle(dark),
+                child: child!,
+              );
+            },
+            home: WeatherHomePage(
+              service: widget.service,
+              location: widget.location,
+            ),
           ),
         );
       },
     );
   }
+
+  SystemUiOverlayStyle _overlayStyle(bool dark) => SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    statusBarIconBrightness: dark ? Brightness.light : Brightness.dark,
+    statusBarBrightness: dark ? Brightness.dark : Brightness.light,
+    systemNavigationBarColor: dark ? const Color(0xFF151F33) : Colors.white,
+    systemNavigationBarIconBrightness: dark ? Brightness.light : Brightness.dark,
+  );
 
   ThemeData _buildTheme(Brightness brightness) {
     final dark = brightness == Brightness.dark;
@@ -70,6 +106,7 @@ class _SkyCastAppState extends State<SkyCastApp> {
         backgroundColor: Colors.transparent,
         foregroundColor: dark ? primaryText : const Color(0xFF101B36),
         elevation: 0,
+        systemOverlayStyle: _overlayStyle(dark),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
@@ -109,5 +146,5 @@ class AppThemeScope extends InheritedNotifier<ValueNotifier<ThemeMode>> {
   }) : super(notifier: themeMode);
 
   static ValueNotifier<ThemeMode>? maybeOf(BuildContext context) =>
-      context.dependOnInheritedWidgetOfExactType<AppThemeScope>()?.notifier;
+      context.getInheritedWidgetOfExactType<AppThemeScope>()?.notifier;
 }
