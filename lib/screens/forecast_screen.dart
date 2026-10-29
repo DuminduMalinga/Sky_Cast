@@ -296,6 +296,7 @@ class _TemperatureChart extends StatelessWidget {
       ),
       child: CustomPaint(
         painter: _ChartPainter(
+          gridColor: Theme.of(context).dividerColor,
           values: [for (final hour in hours) hour.tempC],
           labels: [
             for (var i = 0; i < hours.length; i++)
@@ -309,8 +310,13 @@ class _TemperatureChart extends StatelessWidget {
 }
 
 class _ChartPainter extends CustomPainter {
-  _ChartPainter({required this.values, required this.labels});
+  _ChartPainter({
+    required this.values,
+    required this.labels,
+    required this.gridColor,
+  });
 
+  final Color gridColor;
   final List<double> values;
   final List<String> labels;
 
@@ -334,7 +340,7 @@ class _ChartPainter extends CustomPainter {
       for (var i = 0; i < 4; i++) degrees(maxValue - range * i / 3),
     ];
     final gridPaint = Paint()
-      ..color = const Color(0xFFEAF0F7)
+      ..color = gridColor
       ..strokeWidth = 1;
     final linePaint = Paint()
       ..color = const Color(0xFF4D9BD8)
@@ -409,7 +415,9 @@ class _ChartPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _ChartPainter oldDelegate) =>
-      oldDelegate.values != values || oldDelegate.labels != labels;
+      oldDelegate.values != values ||
+      oldDelegate.labels != labels ||
+      oldDelegate.gridColor != gridColor;
 }
 
 class _DayForecastList extends StatelessWidget {
@@ -562,27 +570,30 @@ class _WeatherSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.all(17),
       decoration: BoxDecoration(
-        color: const Color(0xFFEAF5FF),
+        color: dark ? const Color(0xFF14233D) : const Color(0xFFEAF5FF),
         borderRadius: BorderRadius.circular(19),
-        border: Border.all(color: const Color(0xFFD8ECFB)),
+        border: Border.all(
+          color: dark ? const Color(0xFF244266) : const Color(0xFFD8ECFB),
+        ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(
+          Icon(
             Icons.auto_awesome_rounded,
-            color: Color(0xFF4D9BD8),
+            color: dark ? const Color(0xFF63B8FF) : const Color(0xFF4D9BD8),
             size: 22,
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               _text,
-              style: const TextStyle(
-                color: Color(0xFF31537F),
+              style: TextStyle(
+                color: dark ? const Color(0xFFCFE4FF) : const Color(0xFF31537F),
                 fontSize: 12,
                 height: 1.45,
                 fontWeight: FontWeight.w600,
