@@ -65,8 +65,8 @@ class _WeatherHomePageState extends State<WeatherHomePage>
     try {
       final report = await _service.fetchWeather(query ?? _city);
       if (!mounted) return;
-      _city = report.city;
-      _store.saveCurrent(report.city);
+      _city = report.query;
+      _store.saveCurrent(report.query);
       setState(() {
         _report = report;
         _state = null;

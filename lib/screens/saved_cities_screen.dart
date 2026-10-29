@@ -73,7 +73,7 @@ class _SavedCitiesScreenState extends State<SavedCitiesScreen>
       // Device location: resolve to a city name before saving.
       try {
         final report = await _service.fetchWeather(city);
-        city = report.city;
+        city = report.query;
         _reports[city] = report;
       } on WeatherException {
         if (!mounted) return;

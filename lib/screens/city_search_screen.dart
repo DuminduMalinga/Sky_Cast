@@ -79,6 +79,7 @@ class _CitySearchScreenState extends State<CitySearchScreen> {
           for (final city in suggestions)
             _CityResult(
               city: city.name,
+              query: city.query,
               country: [
                 if (city.region.isNotEmpty) city.region,
                 city.country,
@@ -103,13 +104,13 @@ class _CitySearchScreenState extends State<CitySearchScreen> {
   }
 
   Future<void> _selectCity(_CityResult city) async {
-    await _store.addRecent(city.city);
+    await _store.addRecent(city.query);
     if (!mounted) return;
-    Navigator.of(context).pop(city.city);
+    Navigator.of(context).pop(city.query);
   }
 
   Future<void> _removeRecent(_CityResult city) async {
-    await _store.removeRecent(city.city);
+    await _store.removeRecent(city.query);
     await _loadRecent();
   }
 
@@ -184,10 +185,14 @@ class _CityResult {
   const _CityResult({
     required this.city,
     required this.country,
-  });
+    String? query,
+  }) : query = query ?? city;
 
   final String city;
   final String country;
+
+  /// What is stored and returned when this result is picked.
+  final String query;
 }
 
 class _SearchField extends StatelessWidget {

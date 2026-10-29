@@ -8,5 +8,5 @@ export 'app.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await AppSettings.instance.load();
-  runApp(const SkyCastApp());
+  runApp(const SkyCastApp(showOnboarding: true));
 }

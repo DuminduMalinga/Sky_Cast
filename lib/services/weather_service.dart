@@ -38,12 +38,57 @@ class WeatherService {
     return WeatherReport.fromJson(json as Map<String, dynamic>);
   }
 
+  /// City suggestions for [query]. WeatherAPI's own search misses many towns
+  /// (e.g. Matale, Sri Lanka), so Open-Meteo's geocoder is merged in.
   Future<List<CitySuggestion>> searchCities(String query) async {
-    final json = await _get('search.json', {'q': query});
-    return [
-      for (final item in json as List<dynamic>)
-        CitySuggestion.fromJson(item as Map<String, dynamic>),
+    final results = await Future.wait([
+      _get('search.json', {'q': query}).then<List<CitySuggestion>>(
+        (json) => [
+          for (final item in json as List<dynamic>)
+            CitySuggestion.fromJson(item as Map<String, dynamic>),
+        ],
+      ),
+      _geocode(query),
+    ]);
+    final seen = <String>{};
+    final merged = [
+      for (final city in [...results[0], ...results[1]])
+        if (seen.add('${city.name}|${city.country}'.toLowerCase())) city,
     ];
+    // Exact name matches first; the sort is stable so source order is kept.
+    final lower = query.trim().toLowerCase();
+    merged.sort((a, b) {
+      final aExact = a.name.toLowerCase() == lower ? 0 : 1;
+      final bExact = b.name.toLowerCase() == lower ? 0 : 1;
+      return aExact.compareTo(bExact);
+    });
+    return merged.take(8).toList();
+  }
+
+  /// Best-effort lookup; any failure just means no extra suggestions.
+  Future<List<CitySuggestion>> _geocode(String query) async {
+    try {
+      final uri = Uri.https('geocoding-api.open-meteo.com', '/v1/search', {
+        'name': query,
+        'count': '6',
+        'language': 'en',
+      });
+      final response = await _client.get(uri).timeout(_timeout);
+      if (response.statusCode != 200) return const [];
+      final results =
+          (jsonDecode(response.body) as Map<String, dynamic>)['results']
+              as List<dynamic>?;
+      return [
+        for (final item in results ?? const [])
+          CitySuggestion(
+            name: (item as Map<String, dynamic>)['name'] as String,
+            region: item['admin1'] as String? ?? '',
+            country: item['country'] as String? ?? '',
+          ),
+      ];
+    } catch (_) {
+      return const [];
+    }
   }
 
   Future<dynamic> _get(String path, Map<String, String> params) async {

@@ -48,6 +48,9 @@ class WeatherReport {
   final List<HourForecast> hours;
   final List<DayForecast> days;
 
+  /// A query that reloads this exact place later (see [CitySuggestion.query]).
+  String get query => '$city, $country';
+
   DayForecast? get today => days.isEmpty ? null : days.first;
 
   factory WeatherReport.fromJson(Map<String, dynamic> json) {
@@ -170,6 +173,10 @@ class CitySuggestion {
   final String name;
   final String region;
   final String country;
+
+  /// A query that loads this exact place ("Matale, Sri Lanka"), so that
+  /// same-named towns elsewhere are never picked instead.
+  String get query => '$name, $country';
 
   factory CitySuggestion.fromJson(Map<String, dynamic> json) => CitySuggestion(
     name: json['name'] as String,

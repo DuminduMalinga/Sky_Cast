@@ -20,6 +20,10 @@ class LocationException implements Exception {
 }
 
 class LocationService {
+  /// WeatherAPI's approximate, IP-based location.
+  static const ipQuery = 'auto:ip';
+  static const _maxCacheAge = Duration(minutes: 10);
+
   /// The device position as a "lat,lon" query accepted by WeatherAPI.
   Future<String> currentQuery() async {
     try {
@@ -36,17 +40,27 @@ class LocationService {
       if (permission == LocationPermission.denied) {
         throw const LocationException(LocationFailure.denied);
       }
-      final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.low,
-          timeLimit: Duration(seconds: 15),
-        ),
-      );
+      // A cached fix is only trusted while fresh; an old one may be from
+      // somewhere else entirely.
+      final cached = await Geolocator.getLastKnownPosition();
+      final isFresh =
+          cached != null &&
+          DateTime.now().difference(cached.timestamp) < _maxCacheAge;
+      final position = isFresh
+          ? cached
+          : await Geolocator.getCurrentPosition(
+              locationSettings: const LocationSettings(
+                accuracy: LocationAccuracy.low,
+                timeLimit: Duration(seconds: 8),
+              ),
+            );
       return '${position.latitude},${position.longitude}';
     } on LocationException {
       rethrow;
     } catch (_) {
-      throw const LocationException(LocationFailure.unavailable);
+      // Permission is granted but there is no GPS fix (common on emulators and
+      // indoors): let the weather provider estimate the location from the IP.
+      return ipQuery;
     }
   }
 

@@ -3,15 +3,22 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'screens/home_screen.dart';
+import 'screens/onboarding_screen.dart';
 import 'services/app_settings.dart';
 import 'services/location_service.dart';
 import 'services/weather_service.dart';
 
 class SkyCastApp extends StatefulWidget {
-  const SkyCastApp({this.service, this.location, super.key});
+  const SkyCastApp({
+    this.service,
+    this.location,
+    this.showOnboarding = false,
+    super.key,
+  });
 
   final WeatherService? service;
   final LocationService? location;
+  final bool showOnboarding;
 
   @override
   State<SkyCastApp> createState() => _SkyCastAppState();
@@ -56,10 +63,15 @@ class _SkyCastAppState extends State<SkyCastApp> {
                 child: child!,
               );
             },
-            home: WeatherHomePage(
-              service: widget.service,
-              location: widget.location,
-            ),
+            home: widget.showOnboarding
+                ? OnboardingScreen(
+                    service: widget.service,
+                    location: widget.location,
+                  )
+                : WeatherHomePage(
+                    service: widget.service,
+                    location: widget.location,
+                  ),
           ),
         );
       },
@@ -71,7 +83,9 @@ class _SkyCastAppState extends State<SkyCastApp> {
     statusBarIconBrightness: dark ? Brightness.light : Brightness.dark,
     statusBarBrightness: dark ? Brightness.dark : Brightness.light,
     systemNavigationBarColor: dark ? const Color(0xFF151F33) : Colors.white,
-    systemNavigationBarIconBrightness: dark ? Brightness.light : Brightness.dark,
+    systemNavigationBarIconBrightness: dark
+        ? Brightness.light
+        : Brightness.dark,
   );
 
   ThemeData _buildTheme(Brightness brightness) {
@@ -90,9 +104,7 @@ class _SkyCastAppState extends State<SkyCastApp> {
         onSurface: dark ? primaryText : const Color(0xFF101B36),
         outline: dark ? divider : const Color(0xFFE1EAF4),
       ),
-      scaffoldBackgroundColor: dark
-          ? background
-          : const Color(0xFFF4F7FC),
+      scaffoldBackgroundColor: dark ? background : const Color(0xFFF4F7FC),
       cardColor: dark ? card : Colors.white,
       dividerColor: dark ? divider : const Color(0xFFE1EAF4),
       hintColor: dark ? secondaryText : const Color(0xFF8290A8),
@@ -111,10 +123,14 @@ class _SkyCastAppState extends State<SkyCastApp> {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: dark ? card : Colors.white,
-        hintStyle: TextStyle(color: dark ? secondaryText : const Color(0xFF8290A8)),
+        hintStyle: TextStyle(
+          color: dark ? secondaryText : const Color(0xFF8290A8),
+        ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(17),
-          borderSide: BorderSide(color: dark ? divider : const Color(0xFFE2EAF4)),
+          borderSide: BorderSide(
+            color: dark ? divider : const Color(0xFFE2EAF4),
+          ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(17),
